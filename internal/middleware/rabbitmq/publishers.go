@@ -1,6 +1,7 @@
 package rabbitmq
 
 type Publishers struct {
+	Base       *RabbitMQ
 	Like       *LikeMQ
 	Comment    *CommentMQ
 	Popularity *PopularityMQ
@@ -24,7 +25,11 @@ func NewPublishers(base *RabbitMQ) (*Publishers, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err := DeclareNotificationTopology(base); err != nil {
+		return nil, err
+	}
 	return &Publishers{
+		Base:       base,
 		Like:       likeMQ,
 		Comment:    commentMQ,
 		Popularity: popularityMQ,

@@ -23,7 +23,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("open database: %v", err)
 	}
-	if err := db.AutoMigrate(database, &account.Account{}, &video.Video{}, &video.Like{}, &video.Comment{}, &video.Tag{}, &video.VideoTag{}, &social.Social{}); err != nil {
+	if err := db.AutoMigrate(database, &account.Account{}, &video.Video{}, &video.Like{}, &video.Comment{}, &video.Tag{}, &video.VideoTag{}, &social.Social{}, &worker.Notification{}); err != nil {
 		log.Fatalf("auto migrate: %v", err)
 	}
 

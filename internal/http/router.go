@@ -1,6 +1,8 @@
 package http
 
 import (
+	"context"
+	"log"
 	"time"
 
 	"video-feed/internal/account"
@@ -11,8 +13,10 @@ import (
 	rediscache "video-feed/internal/middleware/redis"
 	"video-feed/internal/social"
 	"video-feed/internal/video"
+	"video-feed/internal/worker"
 
 	"github.com/gin-gonic/gin"
+	amqp "github.com/rabbitmq/amqp091-go"
 	"gorm.io/gorm"
 )
 
@@ -134,6 +138,35 @@ func NewRouterWithPublishers(database *gorm.DB, tokenCache *rediscache.Client, p
 		{
 			protectedFeedGroup.POST("/listByFollowing", feedHandler.ListByFollowing)
 		}
+
+		notificationHub := worker.NewSSEHub(database)
+		notificationGroup := router.Group("/notification")
+		notificationGroup.GET("/stream", notificationHub.SSERequireAuth(), notificationHub.SSEHandler)
+		protectedNotificationGroup := notificationGroup.Group("")
+		protectedNotificationGroup.Use(authjwt.JWTAuth(accountRepo, tokenCache))
+		{
+			protectedNotificationGroup.POST("/list", notificationHub.ListHandler)
+			protectedNotificationGroup.POST("/markRead", notificationHub.MarkReadHandler)
+			protectedNotificationGroup.POST("/unreadCount", notificationHub.UnreadCountHandler)
+		}
+		if publishers != nil && publishers.Base != nil && publishers.Base.Ch != nil {
+			startNotificationWorkers(publishers.Base.Ch, database, notificationHub)
+		}
 	}
 	return router
+}
+
+func startNotificationWorkers(ch *amqp.Channel, database *gorm.DB, hub *worker.SSEHub) {
+	ctx := context.Background()
+	runNotificationWorker(ctx, "notification-like", worker.NewNotificationWorker(ch, database, rabbitmq.NotificationLikeQueue, hub).Run)
+	runNotificationWorker(ctx, "notification-comment", worker.NewNotificationWorker(ch, database, rabbitmq.NotificationCommentQueue, hub).Run)
+	runNotificationWorker(ctx, "notification-social", worker.NewNotificationWorker(ch, database, rabbitmq.NotificationSocialQueue, hub).Run)
+}
+
+func runNotificationWorker(ctx context.Context, name string, fn func(context.Context) error) {
+	go func() {
+		if err := fn(ctx); err != nil {
+			log.Printf("%s worker stopped: %v", name, err)
+		}
+	}()
 }
