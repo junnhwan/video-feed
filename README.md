@@ -180,13 +180,20 @@ $seed = Get-ChildItem bench/results/seed-*.json | Sort-Object LastWriteTime -Des
 $m = Get-Content $seed.FullName | ConvertFrom-Json
 ```
 
-推荐直接运行完整 JMeter 对比脚本：
+推荐直接运行完整 JMeter 对比脚本。`FeedThreads` 会对最新 Feed 游标分页跑多档并发，`SkipComment` 可跳过评论写入场景，避免把账号限流混入读路径实验：
 
 ```powershell
-.\bench\jmeter\run-comparison.ps1 -Manifest $seed.FullName -Threads 20 -Duration 60 -CommentDelayMS 7000
+.\bench\jmeter\run-comparison.ps1 `
+  -Manifest $seed.FullName `
+  -Threads 5 `
+  -FeedThreads 5,10,20 `
+  -Duration 30 `
+  -RampUp 5 `
+  -Limit 20 `
+  -SkipComment
 ```
 
-脚本会依次生成热榜 DB fallback、热榜 Redis 快照、详情冷读、详情热缓存、最新 Feed、评论写入的 `.jtl` 和 HTML 报告。评论接口有账号维度限流，`CommentDelayMS` 用于控制每个线程的写入节奏，避免把限流错误混进正常写入延迟。
+脚本会依次生成热榜 DB fallback、热榜 Redis 快照、详情冷读、详情热缓存、最新 Feed 多并发档位和可选评论写入的 `.jtl` 与 HTML 报告。JMeter 场景对最新 Feed 会提取响应中的 `next_time` 并写回下一轮请求，模拟真实游标分页。
 
 提取两次 JTL 的对比指标：
 
@@ -197,6 +204,15 @@ $m = Get-Content $seed.FullName | ConvertFrom-Json
   -BaselineName hot-db `
   -CandidateName hot-redis `
   -Out bench/results/hot-comparison.md
+```
+
+汇总多份 JTL：
+
+```powershell
+.\bench\jmeter\summarize-jtl.ps1 `
+  -Jtl bench/results/hot-db.jtl,bench/results/hot-redis.jtl,bench/results/latest-t5.jtl `
+  -Name hot-db,hot-redis,latest-t5 `
+  -Out bench/results/summary.md
 ```
 
 热榜对比使用同一个 JMeter 场景，通过 Redis 状态切换得到前后对比：
@@ -234,7 +250,7 @@ jmeter -n -t bench/jmeter/video-feed-benchmark.jmx `
   -l bench/results/detail-hot.jtl -e -o bench/results/detail-hot-html
 ```
 
-其他场景可以通过 `-Jscenario=latest` 或 `-Jscenario=comment` 单独运行。JMeter HTML 报告用于正式截图和复盘，`bench/results/` 是本地生成结果目录，不会进入 Git。
+其他场景可以通过 `-Jscenario=latest` 或 `-Jscenario=comment` 单独运行。JMeter HTML 报告用于正式截图和复盘，`bench/results/` 是本地生成结果目录，不会进入 Git。详情冷读实验要确保样本数小于视频 CSV 行数，否则 CSV 循环后会混入缓存命中。
 
 项目也保留了轻量 Go runner，适合本地快速 smoke 和自动化对比：
 

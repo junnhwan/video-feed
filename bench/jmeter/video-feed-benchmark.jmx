@@ -47,6 +47,11 @@
             <stringProp name="Argument.value">${__P(comment_delay_ms,7000)}</stringProp>
             <stringProp name="Argument.metadata">=</stringProp>
           </elementProp>
+          <elementProp name="latest_time" elementType="Argument">
+            <stringProp name="Argument.name">latest_time</stringProp>
+            <stringProp name="Argument.value">0</stringProp>
+            <stringProp name="Argument.metadata">=</stringProp>
+          </elementProp>
         </collectionProp>
       </elementProp>
     </TestPlan>
@@ -110,6 +115,7 @@
               <stringProp name="HTTPSampler.protocol">${base_protocol}</stringProp>
               <stringProp name="HTTPSampler.path">/account/login</stringProp>
               <stringProp name="HTTPSampler.method">POST</stringProp>
+              <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
               <boolProp name="HTTPSampler.postBodyRaw">true</boolProp>
               <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
                 <collectionProp name="Arguments.arguments">
@@ -144,6 +150,7 @@
             <stringProp name="HTTPSampler.protocol">${base_protocol}</stringProp>
             <stringProp name="HTTPSampler.path">/feed/listByPopularity</stringProp>
             <stringProp name="HTTPSampler.method">POST</stringProp>
+            <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
             <boolProp name="HTTPSampler.postBodyRaw">true</boolProp>
             <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
               <collectionProp name="Arguments.arguments">
@@ -169,6 +176,7 @@
             <stringProp name="HTTPSampler.protocol">${base_protocol}</stringProp>
             <stringProp name="HTTPSampler.path">/video/getDetail</stringProp>
             <stringProp name="HTTPSampler.method">POST</stringProp>
+            <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
             <boolProp name="HTTPSampler.postBodyRaw">true</boolProp>
             <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
               <collectionProp name="Arguments.arguments">
@@ -194,18 +202,27 @@
             <stringProp name="HTTPSampler.protocol">${base_protocol}</stringProp>
             <stringProp name="HTTPSampler.path">/feed/listLatest</stringProp>
             <stringProp name="HTTPSampler.method">POST</stringProp>
+            <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
             <boolProp name="HTTPSampler.postBodyRaw">true</boolProp>
             <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
               <collectionProp name="Arguments.arguments">
                 <elementProp name="" elementType="HTTPArgument">
                   <boolProp name="HTTPArgument.always_encode">false</boolProp>
-                  <stringProp name="Argument.value">{"limit":${limit}}</stringProp>
+                  <stringProp name="Argument.value">{"limit":${limit},"latest_time":${latest_time}}</stringProp>
                   <stringProp name="Argument.metadata">=</stringProp>
                 </elementProp>
               </collectionProp>
             </elementProp>
           </HTTPSamplerProxy>
-          <hashTree/>
+          <hashTree>
+            <JSONPostProcessor guiclass="JSONPostProcessorGui" testclass="JSONPostProcessor" testname="Extract latest cursor">
+              <stringProp name="JSONPostProcessor.referenceNames">latest_time</stringProp>
+              <stringProp name="JSONPostProcessor.jsonPathExprs">$.next_time</stringProp>
+              <stringProp name="JSONPostProcessor.match_numbers">1</stringProp>
+              <stringProp name="JSONPostProcessor.defaultValues">0</stringProp>
+            </JSONPostProcessor>
+            <hashTree/>
+          </hashTree>
         </hashTree>
         <IfController guiclass="IfControllerPanel" testclass="IfController" testname="If scenario == comment request">
           <stringProp name="IfController.condition">${__groovy(vars.get("scenario") == "comment")}</stringProp>
@@ -223,6 +240,7 @@
             <stringProp name="HTTPSampler.protocol">${base_protocol}</stringProp>
             <stringProp name="HTTPSampler.path">/comment/publish</stringProp>
             <stringProp name="HTTPSampler.method">POST</stringProp>
+            <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
             <boolProp name="HTTPSampler.postBodyRaw">true</boolProp>
             <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
               <collectionProp name="Arguments.arguments">

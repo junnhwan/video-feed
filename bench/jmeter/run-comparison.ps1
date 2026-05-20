@@ -7,10 +7,12 @@ param(
     [string]$BasePort = "8080",
     [string]$BaseProtocol = "http",
     [int]$Threads = 20,
+    [int[]]$FeedThreads = @(10, 20, 50),
     [int]$Duration = 60,
     [int]$RampUp = 10,
     [int]$Limit = 20,
     [int]$CommentDelayMS = 7000,
+    [switch]$SkipComment,
     [string]$OutDir = "bench/results"
 )
 
@@ -32,7 +34,8 @@ function Reset-ReportPath([string]$Path) {
 function Invoke-JMeterScenario(
     [string]$Label,
     [string]$Scenario,
-    [string]$StateMode
+    [string]$StateMode,
+    [int]$ThreadCount = $Threads
 ) {
     if ($StateMode) {
         go run ./cmd/benchstate -config $Config -manifest $Manifest -mode $StateMode
@@ -54,7 +57,7 @@ function Invoke-JMeterScenario(
         "-Jvideos_csv=$videosCsv" `
         "-Jhot_as_of=$($manifestData.hot_as_of)" `
         "-Jpassword=$($manifestData.password)" `
-        "-Jthreads=$Threads" `
+        "-Jthreads=$ThreadCount" `
         "-Jduration=$Duration" `
         "-Jrampup=$RampUp" `
         "-Jlimit=$Limit" `
@@ -72,7 +75,11 @@ Invoke-JMeterScenario -Label "hot-db" -Scenario "hot" -StateMode "db"
 Invoke-JMeterScenario -Label "hot-redis" -Scenario "hot" -StateMode "hot"
 Invoke-JMeterScenario -Label "detail-cold" -Scenario "detail" -StateMode "detail-cold"
 Invoke-JMeterScenario -Label "detail-hot" -Scenario "detail" -StateMode ""
-Invoke-JMeterScenario -Label "latest" -Scenario "latest" -StateMode ""
-Invoke-JMeterScenario -Label "comment" -Scenario "comment" -StateMode ""
+foreach ($threadCount in $FeedThreads) {
+    Invoke-JMeterScenario -Label "latest-t$threadCount" -Scenario "latest" -StateMode "" -ThreadCount $threadCount
+}
+if (-not $SkipComment) {
+    Invoke-JMeterScenario -Label "comment" -Scenario "comment" -StateMode ""
+}
 
 Write-Host "JMeter reports written to $OutDir"
