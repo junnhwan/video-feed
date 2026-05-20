@@ -2,6 +2,7 @@ package feed
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"video-feed/internal/video"
@@ -92,6 +93,18 @@ func (s *Service) ListByPopularity(ctx context.Context, limit int, latestPopular
 		resp.NextLatestIDBefore = &nextID
 	}
 	return resp, nil
+}
+
+func (s *Service) ListByTag(ctx context.Context, tagName string, limit int, viewerAccountID uint) ([]FeedVideoItem, error) {
+	tagName = strings.TrimSpace(strings.TrimPrefix(tagName, "#"))
+	if tagName == "" {
+		return []FeedVideoItem{}, nil
+	}
+	videos, err := s.repo.ListByTag(ctx, tagName, normalizeLimit(limit))
+	if err != nil {
+		return nil, err
+	}
+	return s.buildFeedVideos(ctx, videos, viewerAccountID)
 }
 
 func (s *Service) buildFeedVideos(ctx context.Context, videos []*video.Video, viewerAccountID uint) ([]FeedVideoItem, error) {

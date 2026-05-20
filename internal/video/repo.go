@@ -37,6 +37,15 @@ func (r *Repository) ListByAuthorID(ctx context.Context, authorID uint) ([]Video
 	return videos, nil
 }
 
+func (r *Repository) Delete(ctx context.Context, id uint) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("video_id = ?", id).Delete(&VideoTag{}).Error; err != nil {
+			return err
+		}
+		return tx.Delete(&Video{}, id).Error
+	})
+}
+
 func (r *Repository) IsExist(ctx context.Context, id uint) (bool, error) {
 	var count int64
 	if err := r.db.WithContext(ctx).Model(&Video{}).Where("id = ?", id).Count(&count).Error; err != nil {

@@ -22,6 +22,7 @@ func NewRouter(database *gorm.DB, cache ...*rediscache.Client) *gin.Engine {
 	}
 
 	router := gin.Default()
+	router.Static("/static", "./.run/uploads")
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok"})
 	})
@@ -60,6 +61,9 @@ func NewRouter(database *gorm.DB, cache ...*rediscache.Client) *gin.Engine {
 		protectedVideoGroup.Use(authjwt.JWTAuth(accountRepo, tokenCache))
 		{
 			protectedVideoGroup.POST("/publish", ratelimit.Limit(tokenCache, "video_publish", 30, time.Minute, ratelimit.KeyByAccount), videoHandler.Publish)
+			protectedVideoGroup.POST("/delete", videoHandler.DeleteVideo)
+			protectedVideoGroup.POST("/uploadVideo", videoHandler.UploadVideo)
+			protectedVideoGroup.POST("/uploadCover", videoHandler.UploadCover)
 		}
 
 		likeRepo := video.NewLikeRepository(database)
@@ -110,6 +114,7 @@ func NewRouter(database *gorm.DB, cache ...*rediscache.Client) *gin.Engine {
 			feedGroup.POST("/listLatest", feedHandler.ListLatest)
 			feedGroup.POST("/listLikesCount", feedHandler.ListLikesCount)
 			feedGroup.POST("/listByPopularity", feedHandler.ListByPopularity)
+			feedGroup.POST("/listByTag", feedHandler.ListByTag)
 		}
 		protectedFeedGroup := feedGroup.Group("")
 		protectedFeedGroup.Use(authjwt.JWTAuth(accountRepo, tokenCache))

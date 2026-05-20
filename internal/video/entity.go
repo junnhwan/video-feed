@@ -39,3 +39,7 @@ type getDetailRequest struct {
 type listByAuthorIDRequest struct {
 	AuthorID uint `json:"author_id"`
 }
+
+type deleteVideoRequest struct {
+	ID uint `json:"id"`
+}

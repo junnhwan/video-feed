@@ -75,3 +75,16 @@ func (r *Repository) ListByPopularity(ctx context.Context, limit int, popularity
 	}
 	return videos, nil
 }
+
+func (r *Repository) ListByTag(ctx context.Context, tagName string, limit int) ([]*video.Video, error) {
+	var videos []*video.Video
+	err := r.db.WithContext(ctx).
+		Model(&video.Video{}).
+		Joins("JOIN video_tags ON video_tags.video_id = videos.id").
+		Joins("JOIN tags ON tags.id = video_tags.tag_id").
+		Where("tags.name = ?", tagName).
+		Order("videos.created_at DESC, videos.id DESC").
+		Limit(limit).
+		Find(&videos).Error
+	return videos, err
+}

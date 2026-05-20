@@ -106,6 +106,24 @@ func (h *Handler) ListByPopularity(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
+func (h *Handler) ListByTag(c *gin.Context) {
+	var req struct {
+		TagName string `json:"tag_name"`
+		Limit   int    `json:"limit"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	viewerAccountID, _ := authjwt.GetAccountID(c)
+	items, err := h.service.ListByTag(c.Request.Context(), req.TagName, req.Limit, viewerAccountID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"video_list": nonNilFeedItems(items)})
+}
+
 func unixMilliCursor(value int64) time.Time {
 	if value <= 0 {
 		return time.Time{}
