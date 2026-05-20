@@ -36,3 +36,11 @@ func (r *Repository) ListByAuthorID(ctx context.Context, authorID uint) ([]Video
 	}
 	return videos, nil
 }
+
+func (r *Repository) IsExist(ctx context.Context, id uint) (bool, error) {
+	var count int64
+	if err := r.db.WithContext(ctx).Model(&Video{}).Where("id = ?", id).Count(&count).Error; err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}

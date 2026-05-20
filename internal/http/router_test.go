@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 
 	"video-feed/internal/account"
@@ -53,7 +54,7 @@ func TestNewRouterRegistersVideoRoutes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
-	if err := database.AutoMigrate(&account.Account{}, &video.Video{}, &video.Like{}, &social.Social{}); err != nil {
+	if err := database.AutoMigrate(&account.Account{}, &video.Video{}, &video.Like{}, &video.Comment{}, &social.Social{}); err != nil {
 		t.Fatalf("migrate models: %v", err)
 	}
 	router := NewRouter(database)
@@ -76,7 +77,7 @@ func TestVideoPublishRequiresJWT(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
-	if err := database.AutoMigrate(&account.Account{}, &video.Video{}, &video.Like{}, &social.Social{}); err != nil {
+	if err := database.AutoMigrate(&account.Account{}, &video.Video{}, &video.Like{}, &video.Comment{}, &social.Social{}); err != nil {
 		t.Fatalf("migrate models: %v", err)
 	}
 	router := NewRouter(database)
@@ -97,7 +98,7 @@ func TestLogoutRevokesTokenForProtectedRoutes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
-	if err := database.AutoMigrate(&account.Account{}, &video.Video{}, &video.Like{}, &social.Social{}); err != nil {
+	if err := database.AutoMigrate(&account.Account{}, &video.Video{}, &video.Like{}, &video.Comment{}, &social.Social{}); err != nil {
 		t.Fatalf("migrate models: %v", err)
 	}
 	router := NewRouter(database)
@@ -129,7 +130,7 @@ func TestRefreshReturnsNewAccessToken(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
-	if err := database.AutoMigrate(&account.Account{}, &video.Video{}, &video.Like{}, &social.Social{}); err != nil {
+	if err := database.AutoMigrate(&account.Account{}, &video.Video{}, &video.Like{}, &video.Comment{}, &social.Social{}); err != nil {
 		t.Fatalf("migrate models: %v", err)
 	}
 	router := NewRouter(database)
@@ -176,7 +177,7 @@ func TestNewRouterRegistersFeedRoutes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
-	if err := database.AutoMigrate(&account.Account{}, &video.Video{}, &video.Like{}, &social.Social{}); err != nil {
+	if err := database.AutoMigrate(&account.Account{}, &video.Video{}, &video.Like{}, &video.Comment{}, &social.Social{}); err != nil {
 		t.Fatalf("migrate models: %v", err)
 	}
 	if err := database.Create(&video.Video{
@@ -209,6 +210,142 @@ func TestNewRouterRegistersFeedRoutes(t *testing.T) {
 	}
 	if len(resp.VideoList) != 1 || resp.VideoList[0].Title != "first vlog" {
 		t.Fatalf("unexpected feed response: %+v", resp.VideoList)
+	}
+}
+
+func TestLikeRouteUpdatesFeedState(t *testing.T) {
+	database, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	if err := database.AutoMigrate(&account.Account{}, &video.Video{}, &video.Like{}, &video.Comment{}, &social.Social{}); err != nil {
+		t.Fatalf("migrate models: %v", err)
+	}
+	seed := video.Video{AuthorID: 99, Username: "creator", Title: "first vlog", PlayURL: "1.mp4", CoverURL: "1.jpg"}
+	if err := database.Create(&seed).Error; err != nil {
+		t.Fatalf("create video: %v", err)
+	}
+	router := NewRouter(database)
+	token := registerAndLogin(t, router)
+
+	likeBody := bytes.NewBufferString(`{"video_id":` + strconv.Itoa(int(seed.ID)) + `}`)
+	likeReq := httptest.NewRequest("POST", "/like/like", likeBody)
+	likeReq.Header.Set("Content-Type", "application/json")
+	likeReq.Header.Set("Authorization", "Bearer "+token)
+	likeRec := httptest.NewRecorder()
+	router.ServeHTTP(likeRec, likeReq)
+	if likeRec.Code != http.StatusOK {
+		t.Fatalf("like expected 200, got %d body=%s", likeRec.Code, likeRec.Body.String())
+	}
+
+	feedReq := httptest.NewRequest("POST", "/feed/listLatest", bytes.NewBufferString(`{"limit":10}`))
+	feedReq.Header.Set("Content-Type", "application/json")
+	feedReq.Header.Set("Authorization", "Bearer "+token)
+	feedRec := httptest.NewRecorder()
+	router.ServeHTTP(feedRec, feedReq)
+	if feedRec.Code != http.StatusOK {
+		t.Fatalf("feed expected 200, got %d body=%s", feedRec.Code, feedRec.Body.String())
+	}
+	var resp struct {
+		VideoList []struct {
+			ID         uint  `json:"id"`
+			LikesCount int64 `json:"likes_count"`
+			IsLiked    bool  `json:"is_liked"`
+		} `json:"video_list"`
+	}
+	if err := json.Unmarshal(feedRec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode feed response: %v", err)
+	}
+	if len(resp.VideoList) != 1 {
+		t.Fatalf("expected 1 feed item, got %d", len(resp.VideoList))
+	}
+	if resp.VideoList[0].LikesCount != 1 || !resp.VideoList[0].IsLiked {
+		t.Fatalf("expected liked feed item with count 1, got %+v", resp.VideoList[0])
+	}
+}
+
+func TestCommentRoutesPublishAndList(t *testing.T) {
+	database, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	if err := database.AutoMigrate(&account.Account{}, &video.Video{}, &video.Like{}, &video.Comment{}, &social.Social{}); err != nil {
+		t.Fatalf("migrate models: %v", err)
+	}
+	seed := video.Video{AuthorID: 99, Username: "creator", Title: "first vlog", PlayURL: "1.mp4", CoverURL: "1.jpg"}
+	if err := database.Create(&seed).Error; err != nil {
+		t.Fatalf("create video: %v", err)
+	}
+	router := NewRouter(database)
+	token := registerAndLogin(t, router)
+
+	publishBody := bytes.NewBufferString(`{"video_id":` + strconv.Itoa(int(seed.ID)) + `,"content":"hello"}`)
+	publishReq := httptest.NewRequest("POST", "/comment/publish", publishBody)
+	publishReq.Header.Set("Content-Type", "application/json")
+	publishReq.Header.Set("Authorization", "Bearer "+token)
+	publishRec := httptest.NewRecorder()
+	router.ServeHTTP(publishRec, publishReq)
+	if publishRec.Code != http.StatusOK {
+		t.Fatalf("comment publish expected 200, got %d body=%s", publishRec.Code, publishRec.Body.String())
+	}
+
+	listBody := bytes.NewBufferString(`{"video_id":` + strconv.Itoa(int(seed.ID)) + `}`)
+	listReq := httptest.NewRequest("POST", "/comment/listAll", listBody)
+	listReq.Header.Set("Content-Type", "application/json")
+	listRec := httptest.NewRecorder()
+	router.ServeHTTP(listRec, listReq)
+	if listRec.Code != http.StatusOK {
+		t.Fatalf("comment list expected 200, got %d body=%s", listRec.Code, listRec.Body.String())
+	}
+	var comments []struct {
+		Content string `json:"content"`
+	}
+	if err := json.Unmarshal(listRec.Body.Bytes(), &comments); err != nil {
+		t.Fatalf("decode comments: %v", err)
+	}
+	if len(comments) != 1 || comments[0].Content != "hello" {
+		t.Fatalf("unexpected comments: %+v", comments)
+	}
+}
+
+func TestSocialRoutesFollowAndCounts(t *testing.T) {
+	database, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	if err := database.AutoMigrate(&account.Account{}, &video.Video{}, &video.Like{}, &video.Comment{}, &social.Social{}); err != nil {
+		t.Fatalf("migrate models: %v", err)
+	}
+	router := NewRouter(database)
+	token := registerAndLogin(t, router)
+	if err := database.Create(&account.Account{ID: 2, Username: "bob", Password: "hash"}).Error; err != nil {
+		t.Fatalf("create bob: %v", err)
+	}
+
+	followReq := httptest.NewRequest("POST", "/social/follow", bytes.NewBufferString(`{"vlogger_id":2}`))
+	followReq.Header.Set("Content-Type", "application/json")
+	followReq.Header.Set("Authorization", "Bearer "+token)
+	followRec := httptest.NewRecorder()
+	router.ServeHTTP(followRec, followReq)
+	if followRec.Code != http.StatusOK {
+		t.Fatalf("follow expected 200, got %d body=%s", followRec.Code, followRec.Body.String())
+	}
+
+	countReq := httptest.NewRequest("POST", "/social/getCounts", nil)
+	countReq.Header.Set("Authorization", "Bearer "+token)
+	countRec := httptest.NewRecorder()
+	router.ServeHTTP(countRec, countReq)
+	if countRec.Code != http.StatusOK {
+		t.Fatalf("counts expected 200, got %d body=%s", countRec.Code, countRec.Body.String())
+	}
+	var counts struct {
+		VloggerCount int64 `json:"vlogger_count"`
+	}
+	if err := json.Unmarshal(countRec.Body.Bytes(), &counts); err != nil {
+		t.Fatalf("decode counts: %v", err)
+	}
+	if counts.VloggerCount != 1 {
+		t.Fatalf("expected vlogger_count 1, got %d", counts.VloggerCount)
 	}
 }
 

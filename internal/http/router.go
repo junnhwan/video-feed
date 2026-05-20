@@ -8,6 +8,7 @@ import (
 	authjwt "video-feed/internal/middleware/jwt"
 	"video-feed/internal/middleware/ratelimit"
 	rediscache "video-feed/internal/middleware/redis"
+	"video-feed/internal/social"
 	"video-feed/internal/video"
 
 	"github.com/gin-gonic/gin"
@@ -62,6 +63,44 @@ func NewRouter(database *gorm.DB, cache ...*rediscache.Client) *gin.Engine {
 		}
 
 		likeRepo := video.NewLikeRepository(database)
+		likeService := video.NewLikeService(likeRepo, videoRepo, tokenCache)
+		likeHandler := video.NewLikeHandler(likeService)
+		likeGroup := router.Group("/like")
+		likeGroup.Use(authjwt.JWTAuth(accountRepo, tokenCache))
+		{
+			likeGroup.POST("/like", ratelimit.Limit(tokenCache, "like_write", 30, time.Minute, ratelimit.KeyByAccount), likeHandler.Like)
+			likeGroup.POST("/unlike", ratelimit.Limit(tokenCache, "like_write", 30, time.Minute, ratelimit.KeyByAccount), likeHandler.Unlike)
+			likeGroup.POST("/isLiked", likeHandler.IsLiked)
+			likeGroup.POST("/listMyLikedVideos", likeHandler.ListMyLikedVideos)
+		}
+
+		commentRepo := video.NewCommentRepository(database)
+		commentService := video.NewCommentService(commentRepo, videoRepo, tokenCache)
+		commentHandler := video.NewCommentHandler(commentService, accountService)
+		commentGroup := router.Group("/comment")
+		{
+			commentGroup.POST("/listAll", commentHandler.GetAllComments)
+		}
+		protectedCommentGroup := commentGroup.Group("")
+		protectedCommentGroup.Use(authjwt.JWTAuth(accountRepo, tokenCache))
+		{
+			protectedCommentGroup.POST("/publish", ratelimit.Limit(tokenCache, "comment_write", 10, time.Minute, ratelimit.KeyByAccount), commentHandler.PublishComment)
+			protectedCommentGroup.POST("/delete", ratelimit.Limit(tokenCache, "comment_write", 10, time.Minute, ratelimit.KeyByAccount), commentHandler.DeleteComment)
+		}
+
+		socialRepo := social.NewRepository(database)
+		socialService := social.NewService(socialRepo, accountRepo)
+		socialHandler := social.NewHandler(socialService)
+		socialGroup := router.Group("/social")
+		socialGroup.Use(authjwt.JWTAuth(accountRepo, tokenCache))
+		{
+			socialGroup.POST("/follow", ratelimit.Limit(tokenCache, "social_write", 20, time.Minute, ratelimit.KeyByAccount), socialHandler.Follow)
+			socialGroup.POST("/unfollow", ratelimit.Limit(tokenCache, "social_write", 20, time.Minute, ratelimit.KeyByAccount), socialHandler.Unfollow)
+			socialGroup.POST("/getAllFollowers", socialHandler.GetAllFollowers)
+			socialGroup.POST("/getAllVloggers", socialHandler.GetAllVloggers)
+			socialGroup.POST("/getCounts", socialHandler.GetCounts)
+		}
+
 		feedRepo := feed.NewRepository(database)
 		feedService := feed.NewService(feedRepo, likeRepo, tokenCache)
 		feedHandler := feed.NewHandler(feedService)
