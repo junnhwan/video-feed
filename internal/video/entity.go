@@ -12,7 +12,7 @@ type Video struct {
 	CoverURL    string    `gorm:"size:512;not null" json:"cover_url"`
 	LikesCount  int64     `gorm:"not null;default:0;index:idx_videos_likes_count_id,priority:1,sort:desc" json:"likes_count"`
 	Popularity  int64     `gorm:"not null;default:0;index:idx_videos_popularity_created_id,priority:1,sort:desc" json:"popularity"`
-	CreatedAt   time.Time `gorm:"index" json:"created_at"`
+	CreatedAt   time.Time `gorm:"index" json:"create_time"`
 	UpdatedAt   time.Time `json:"updated_at"`
 }
 

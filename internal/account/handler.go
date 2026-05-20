@@ -1,8 +1,16 @@
 package account
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
+	"fmt"
 	"net/http"
+	"os"
+	"path"
+	"path/filepath"
+	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -213,6 +221,58 @@ func (h *Handler) UpdateProfile(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "profile updated"})
 }
 
+func (h *Handler) UploadAvatar(c *gin.Context) {
+	accountID, err := getAccountID(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		return
+	}
+	file, err := c.FormFile("file")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "missing file"})
+		return
+	}
+	const maxAvatarSize = 10 << 20
+	if file.Size <= 0 || file.Size > maxAvatarSize {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid file size"})
+		return
+	}
+	ext := strings.ToLower(filepath.Ext(file.Filename))
+	switch ext {
+	case ".jpg", ".jpeg", ".png", ".webp":
+	default:
+		c.JSON(http.StatusBadRequest, gin.H{"error": "only .jpg/.jpeg/.png/.webp allowed"})
+		return
+	}
+	dir := filepath.Join(".run", "uploads", "avatars", strconv.FormatUint(uint64(accountID), 10))
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	filename, err := randHex(16)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	filename += ext
+	uploadPath := filepath.Join(dir, filename)
+	if err := c.SaveUploadedFile(file, uploadPath); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	urlPath := path.Join("/static", "avatars", strconv.FormatUint(uint64(accountID), 10), filename)
+	avatarURL := buildAbsoluteURL(c, urlPath)
+	if err := h.service.UpdateAvatar(c.Request.Context(), accountID, avatarURL); err != nil {
+		status := http.StatusInternalServerError
+		if errors.Is(err, ErrInvalidInput) {
+			status = http.StatusBadRequest
+		}
+		c.JSON(status, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"avatar_url": avatarURL})
+}
+
 func getAccountID(c *gin.Context) (uint, error) {
 	value, exists := c.Get("accountID")
 	if !exists {
@@ -223,4 +283,23 @@ func getAccountID(c *gin.Context) (uint, error) {
 		return 0, errors.New("accountID has invalid type")
 	}
 	return accountID, nil
+}
+
+func randHex(size int) (string, error) {
+	buf := make([]byte, size)
+	if _, err := rand.Read(buf); err != nil {
+		return "", fmt.Errorf("generate random filename: %w", err)
+	}
+	return hex.EncodeToString(buf), nil
+}
+
+func buildAbsoluteURL(c *gin.Context, urlPath string) string {
+	scheme := "http"
+	if c.Request.TLS != nil {
+		scheme = "https"
+	}
+	if forwarded := c.GetHeader("X-Forwarded-Proto"); forwarded != "" {
+		scheme = forwarded
+	}
+	return fmt.Sprintf("%s://%s%s", scheme, c.Request.Host, urlPath)
 }

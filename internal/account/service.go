@@ -196,6 +196,14 @@ func (s *Service) UpdateProfile(ctx context.Context, accountID uint, avatarURL s
 	return s.repo.UpdateFields(ctx, accountID, updates)
 }
 
+func (s *Service) UpdateAvatar(ctx context.Context, accountID uint, avatarURL string) error {
+	avatarURL = strings.TrimSpace(avatarURL)
+	if avatarURL == "" {
+		return ErrInvalidInput
+	}
+	return s.repo.UpdateAvatar(ctx, accountID, avatarURL)
+}
+
 func (s *Service) cacheToken(ctx context.Context, accountID uint, token string) {
 	if s.cache == nil {
 		return

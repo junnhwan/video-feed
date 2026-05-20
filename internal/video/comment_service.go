@@ -3,6 +3,7 @@ package video
 import (
 	"context"
 	"errors"
+	"regexp"
 	"strings"
 
 	rediscache "video-feed/internal/middleware/redis"
@@ -69,6 +70,7 @@ func (s *CommentService) Publish(ctx context.Context, input PublishCommentInput)
 		}
 	}
 	if mysqlEnqueued && redisEnqueued {
+		s.notifyMentions(ctx, comment)
 		return comment, nil
 	}
 
@@ -80,6 +82,7 @@ func (s *CommentService) Publish(ctx context.Context, input PublishCommentInput)
 	if !redisEnqueued {
 		UpdatePopularityCache(ctx, s.cache, comment.VideoID, 1)
 	}
+	s.notifyMentions(ctx, comment)
 	return comment, nil
 }
 
@@ -136,4 +139,51 @@ func (s *CommentService) GetAll(ctx context.Context, videoID uint) ([]Comment, e
 		return nil, ErrVideoNotFound
 	}
 	return s.repo.GetAllComments(ctx, videoID)
+}
+
+var mentionRegex = regexp.MustCompile(`@(\w+)`)
+
+func (s *CommentService) notifyMentions(ctx context.Context, comment *Comment) {
+	if s == nil || s.repo == nil || s.repo.db == nil || comment == nil {
+		return
+	}
+	matches := mentionRegex.FindAllStringSubmatch(comment.Content, -1)
+	if len(matches) == 0 {
+		return
+	}
+	seen := make(map[string]bool, len(matches))
+	for _, match := range matches {
+		if len(match) < 2 {
+			continue
+		}
+		username := strings.TrimSpace(match[1])
+		if username == "" || username == comment.Username || seen[username] {
+			continue
+		}
+		seen[username] = true
+
+		var recipientID uint
+		err := s.repo.db.WithContext(ctx).
+			Table("accounts").
+			Where("username = ?", username).
+			Select("id").
+			Scan(&recipientID).Error
+		if err != nil || recipientID == 0 {
+			continue
+		}
+		notification := struct {
+			RecipientID uint
+			SenderID    uint
+			Type        string
+			TargetID    uint
+			Content     string
+		}{
+			RecipientID: recipientID,
+			SenderID:    comment.AuthorID,
+			Type:        "mention",
+			TargetID:    comment.VideoID,
+			Content:     comment.Username + " 在评论中提到了你",
+		}
+		_ = s.repo.db.WithContext(ctx).Table("notifications").Create(&notification).Error
+	}
 }

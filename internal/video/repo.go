@@ -37,6 +37,25 @@ func (r *Repository) ListByAuthorID(ctx context.Context, authorID uint) ([]Video
 	return videos, nil
 }
 
+func (r *Repository) CountByAuthor(ctx context.Context, authorID uint) (int64, error) {
+	var count int64
+	if err := r.db.WithContext(ctx).Model(&Video{}).Where("author_id = ?", authorID).Count(&count).Error; err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
+func (r *Repository) TotalLikesByAuthor(ctx context.Context, authorID uint) (int64, error) {
+	var total int64
+	if err := r.db.WithContext(ctx).Model(&Video{}).
+		Where("author_id = ?", authorID).
+		Select("COALESCE(SUM(likes_count), 0)").
+		Scan(&total).Error; err != nil {
+		return 0, err
+	}
+	return total, nil
+}
+
 func (r *Repository) Delete(ctx context.Context, id uint) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Where("video_id = ?", id).Delete(&VideoTag{}).Error; err != nil {

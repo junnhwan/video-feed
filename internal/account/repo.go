@@ -74,6 +74,10 @@ func (r *Repository) UpdateToken(ctx context.Context, id uint, token string) err
 	return r.db.WithContext(ctx).Model(&Account{}).Where("id = ?", id).Update("token", token).Error
 }
 
+func (r *Repository) UpdateAvatar(ctx context.Context, id uint, avatarURL string) error {
+	return r.db.WithContext(ctx).Model(&Account{}).Where("id = ?", id).Update("avatar_url", avatarURL).Error
+}
+
 func (r *Repository) ClearTokens(ctx context.Context, id uint) error {
 	return r.db.WithContext(ctx).Model(&Account{}).
 		Where("id = ?", id).

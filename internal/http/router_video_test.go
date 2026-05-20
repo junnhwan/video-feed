@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"video-feed/internal/account"
 	"video-feed/internal/social"
@@ -130,6 +131,42 @@ func TestVideoUploadRoutesValidateTypeAndReturnStaticURL(t *testing.T) {
 		t.Fatalf("unexpected cover_url %q", coverResp.CoverURL)
 	}
 	assertOneUploadedFile(t, filepath.Join(".run", "uploads", "covers"))
+}
+
+func TestVideoDetailUsesSourceCreateTimeJSONField(t *testing.T) {
+	database := newVideoRouterDB(t)
+	createdAt := time.Date(2026, 5, 20, 12, 0, 0, 0, time.UTC)
+	seed := video.Video{
+		AuthorID:  1,
+		Username:  "alice",
+		Title:     "first",
+		PlayURL:   "1.mp4",
+		CoverURL:  "1.jpg",
+		CreatedAt: createdAt,
+	}
+	if err := database.Create(&seed).Error; err != nil {
+		t.Fatalf("create video: %v", err)
+	}
+	router := NewRouter(database)
+
+	req := httptest.NewRequest("POST", "/video/getDetail", bytes.NewBufferString(`{"id":`+jsonUint(seed.ID)+`}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("get detail expected 200, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var response map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatalf("decode detail response: %v", err)
+	}
+	if _, ok := response["create_time"]; !ok {
+		t.Fatalf("expected source-compatible create_time field, got %s", rec.Body.String())
+	}
+	if _, ok := response["created_at"]; ok {
+		t.Fatalf("did not expect created_at field in video detail response: %s", rec.Body.String())
+	}
 }
 
 func newVideoRouterDB(t *testing.T) *gorm.DB {

@@ -56,11 +56,23 @@ type updateProfileRequest struct {
 	Bio       string `json:"bio"`
 }
 
+type getProfileRequest struct {
+	AccountID uint `json:"account_id"`
+}
+
 type accountResponse struct {
 	ID        uint   `json:"id"`
 	Username  string `json:"username"`
 	AvatarURL string `json:"avatar_url,omitempty"`
 	Bio       string `json:"bio,omitempty"`
+}
+
+type getProfileResponse struct {
+	Account       accountResponse `json:"account"`
+	VideoCount    int64           `json:"video_count"`
+	TotalLikes    int64           `json:"total_likes"`
+	FollowerCount int64           `json:"follower_count"`
+	VloggerCount  int64           `json:"vlogger_count"`
 }
 
 type LoginResult struct {

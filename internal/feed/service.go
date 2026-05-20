@@ -2,6 +2,7 @@ package feed
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -10,17 +11,30 @@ import (
 	rediscache "video-feed/internal/middleware/redis"
 	"video-feed/internal/video"
 
+	localcache "github.com/patrickmn/go-cache"
 	goredis "github.com/redis/go-redis/v9"
+	"golang.org/x/sync/singleflight"
 )
 
 type Service struct {
-	repo     *Repository
-	likeRepo *video.LikeRepository
-	cache    *rediscache.Client
+	repo           *Repository
+	likeRepo       *video.LikeRepository
+	cache          *rediscache.Client
+	localCache     *localcache.Cache
+	entityCacheTTL time.Duration
+	followingTTL   time.Duration
+	requestGroup   singleflight.Group
 }
 
 func NewService(repo *Repository, likeRepo *video.LikeRepository, cache *rediscache.Client) *Service {
-	return &Service{repo: repo, likeRepo: likeRepo, cache: cache}
+	return &Service{
+		repo:           repo,
+		likeRepo:       likeRepo,
+		cache:          cache,
+		localCache:     localcache.New(3*time.Second, 5*time.Second),
+		entityCacheTTL: time.Hour,
+		followingTTL:   24 * time.Hour,
+	}
 }
 
 func (s *Service) ListLatest(ctx context.Context, limit int, latestBefore time.Time, viewerAccountID uint) (ListLatestResponse, error) {
@@ -133,13 +147,11 @@ func (s *Service) videosByIDsInOrder(ctx context.Context, ids []uint) ([]*video.
 	if len(ids) == 0 {
 		return []*video.Video{}, nil
 	}
-	videos, err := s.repo.GetByIDs(ctx, ids)
-	if err != nil {
+	byID := make(map[uint]*video.Video, len(ids))
+	missedL1 := s.loadVideoEntitiesFromLocal(ids, byID)
+	missedL2 := s.loadVideoEntitiesFromRedis(ctx, missedL1, byID)
+	if err := s.loadVideoEntitiesFromDB(ctx, missedL2, byID); err != nil {
 		return nil, err
-	}
-	byID := make(map[uint]*video.Video, len(videos))
-	for _, item := range videos {
-		byID[item.ID] = item
 	}
 	ordered := make([]*video.Video, 0, len(ids))
 	for _, id := range ids {
@@ -148,6 +160,141 @@ func (s *Service) videosByIDsInOrder(ctx context.Context, ids []uint) ([]*video.
 		}
 	}
 	return ordered, nil
+}
+
+func (s *Service) loadVideoEntitiesFromLocal(ids []uint, byID map[uint]*video.Video) []uint {
+	if s.localCache == nil {
+		return ids
+	}
+	missed := make([]uint, 0, len(ids))
+	for _, id := range ids {
+		value, ok := s.localCache.Get(s.videoEntityCacheKey(id))
+		if !ok {
+			missed = append(missed, id)
+			continue
+		}
+		switch cached := value.(type) {
+		case video.Video:
+			item := cached
+			byID[id] = &item
+		case *video.Video:
+			if cached != nil {
+				item := *cached
+				byID[id] = &item
+			}
+		default:
+			missed = append(missed, id)
+		}
+	}
+	return missed
+}
+
+func (s *Service) loadVideoEntitiesFromRedis(ctx context.Context, ids []uint, byID map[uint]*video.Video) []uint {
+	if len(ids) == 0 || s.cache == nil {
+		return ids
+	}
+	keys := make([]string, 0, len(ids))
+	for _, id := range ids {
+		keys = append(keys, s.videoEntityCacheKey(id))
+	}
+	opCtx, cancel := context.WithTimeout(ctx, 50*time.Millisecond)
+	results, err := s.cache.MGet(opCtx, keys...)
+	cancel()
+	if err != nil {
+		return ids
+	}
+
+	missed := make([]uint, 0, len(ids))
+	for index, raw := range results {
+		id := ids[index]
+		if raw == nil {
+			missed = append(missed, id)
+			continue
+		}
+		var payload []byte
+		switch value := raw.(type) {
+		case string:
+			payload = []byte(value)
+		case []byte:
+			payload = value
+		default:
+			missed = append(missed, id)
+			continue
+		}
+		var item video.Video
+		if err := json.Unmarshal(payload, &item); err != nil {
+			missed = append(missed, id)
+			continue
+		}
+		byID[id] = &item
+		s.setLocalVideoEntity(&item)
+	}
+	return missed
+}
+
+func (s *Service) loadVideoEntitiesFromDB(ctx context.Context, ids []uint, byID map[uint]*video.Video) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	sfKey := s.singleflightKey(ids)
+	value, err, _ := s.requestGroup.Do(sfKey, func() (any, error) {
+		return s.repo.GetByIDs(ctx, ids)
+	})
+	if err != nil {
+		return err
+	}
+	videos, ok := value.([]*video.Video)
+	if !ok {
+		return nil
+	}
+	for _, item := range videos {
+		if item == nil {
+			continue
+		}
+		copied := *item
+		byID[copied.ID] = &copied
+		s.setVideoEntityCaches(ctx, &copied)
+	}
+	return nil
+}
+
+func (s *Service) setVideoEntityCaches(ctx context.Context, item *video.Video) {
+	if item == nil {
+		return
+	}
+	s.setLocalVideoEntity(item)
+	if s.cache == nil {
+		return
+	}
+	payload, err := json.Marshal(item)
+	if err != nil {
+		return
+	}
+	opCtx, cancel := context.WithTimeout(ctx, 50*time.Millisecond)
+	defer cancel()
+	_ = s.cache.SetBytes(opCtx, s.videoEntityCacheKey(item.ID), payload, s.entityCacheTTL)
+}
+
+func (s *Service) setLocalVideoEntity(item *video.Video) {
+	if s.localCache == nil || item == nil {
+		return
+	}
+	s.localCache.Set(s.videoEntityCacheKey(item.ID), *item, localcache.DefaultExpiration)
+}
+
+func (s *Service) videoEntityCacheKey(id uint) string {
+	if s.cache != nil {
+		return s.cache.Key("video:entity:%d", id)
+	}
+	return fmt.Sprintf("video:entity:%d", id)
+}
+
+func (s *Service) singleflightKey(ids []uint) string {
+	parts := make([]string, 0, len(ids))
+	for _, id := range ids {
+		parts = append(parts, strconv.FormatUint(uint64(id), 10))
+	}
+	return "feed:video-entities:" + strings.Join(parts, ",")
 }
 
 func (s *Service) ListLikesCount(ctx context.Context, limit int, cursor *LikesCountCursor, viewerAccountID uint) (ListLikesCountResponse, error) {
@@ -173,6 +320,27 @@ func (s *Service) ListLikesCount(ctx context.Context, limit int, cursor *LikesCo
 
 func (s *Service) ListByFollowing(ctx context.Context, limit int, latestBefore time.Time, viewerAccountID uint) (ListByFollowingResponse, error) {
 	limit = normalizeLimit(limit)
+	cacheKey := ""
+	if s.cache != nil && viewerAccountID != 0 {
+		cacheKey = s.followingCacheKey(limit, latestBefore, viewerAccountID)
+		if cached, ok := s.getCachedFollowing(ctx, cacheKey); ok {
+			return cached, nil
+		}
+		if resp, handled, err := s.rebuildFollowingWithLock(ctx, cacheKey, limit, latestBefore, viewerAccountID); handled || err != nil {
+			return resp, err
+		}
+	}
+	resp, err := s.listByFollowingFromDB(ctx, limit, latestBefore, viewerAccountID)
+	if err != nil {
+		return ListByFollowingResponse{}, err
+	}
+	if cacheKey != "" {
+		s.setCachedFollowing(ctx, cacheKey, resp)
+	}
+	return resp, nil
+}
+
+func (s *Service) listByFollowingFromDB(ctx context.Context, limit int, latestBefore time.Time, viewerAccountID uint) (ListByFollowingResponse, error) {
 	videos, err := s.repo.ListByFollowing(ctx, limit, viewerAccountID, latestBefore)
 	if err != nil {
 		return ListByFollowingResponse{}, err
@@ -186,6 +354,68 @@ func (s *Service) ListByFollowing(ctx context.Context, limit int, latestBefore t
 		NextTime:  nextTime(videos),
 		HasMore:   len(videos) == limit,
 	}, nil
+}
+
+func (s *Service) getCachedFollowing(ctx context.Context, cacheKey string) (ListByFollowingResponse, bool) {
+	opCtx, cancel := context.WithTimeout(ctx, 50*time.Millisecond)
+	payload, err := s.cache.GetBytes(opCtx, cacheKey)
+	cancel()
+	if err != nil {
+		return ListByFollowingResponse{}, false
+	}
+	var cached ListByFollowingResponse
+	if err := json.Unmarshal(payload, &cached); err != nil {
+		return ListByFollowingResponse{}, false
+	}
+	return cached, true
+}
+
+func (s *Service) rebuildFollowingWithLock(ctx context.Context, cacheKey string, limit int, latestBefore time.Time, viewerAccountID uint) (ListByFollowingResponse, bool, error) {
+	opCtx, cancel := context.WithTimeout(ctx, 50*time.Millisecond)
+	token, locked, _ := s.cache.Lock(opCtx, "lock:"+cacheKey, 500*time.Millisecond)
+	cancel()
+	if locked {
+		defer func() { _ = s.cache.Unlock(context.Background(), "lock:"+cacheKey, token) }()
+		if cached, ok := s.getCachedFollowing(ctx, cacheKey); ok {
+			return cached, true, nil
+		}
+		resp, err := s.listByFollowingFromDB(ctx, limit, latestBefore, viewerAccountID)
+		if err != nil {
+			return ListByFollowingResponse{}, true, err
+		}
+		s.setCachedFollowing(ctx, cacheKey, resp)
+		return resp, true, nil
+	}
+
+	for i := 0; i < 5; i++ {
+		select {
+		case <-ctx.Done():
+			return ListByFollowingResponse{}, true, ctx.Err()
+		case <-time.After(20 * time.Millisecond):
+		}
+		if cached, ok := s.getCachedFollowing(ctx, cacheKey); ok {
+			return cached, true, nil
+		}
+	}
+	return ListByFollowingResponse{}, false, nil
+}
+
+func (s *Service) setCachedFollowing(ctx context.Context, cacheKey string, resp ListByFollowingResponse) {
+	payload, err := json.Marshal(resp)
+	if err != nil {
+		return
+	}
+	opCtx, cancel := context.WithTimeout(ctx, 50*time.Millisecond)
+	defer cancel()
+	_ = s.cache.SetBytes(opCtx, cacheKey, payload, s.followingTTL)
+}
+
+func (s *Service) followingCacheKey(limit int, latestBefore time.Time, viewerAccountID uint) string {
+	before := int64(0)
+	if !latestBefore.IsZero() {
+		before = latestBefore.UnixMilli()
+	}
+	return s.cache.Key("feed:listByFollowing:limit=%d:accountID=%d:before=%d", limit, viewerAccountID, before)
 }
 
 func (s *Service) ListByPopularity(ctx context.Context, limit int, reqAsOf int64, offset int, viewerAccountID uint, latestPopularity int64, latestBefore time.Time, latestIDBefore uint) (ListByPopularityResponse, error) {

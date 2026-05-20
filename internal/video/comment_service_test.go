@@ -15,7 +15,7 @@ func newCommentTestService(t *testing.T) (*CommentService, *gorm.DB) {
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
-	if err := db.AutoMigrate(&Video{}, &Comment{}); err != nil {
+	if err := db.AutoMigrate(&Video{}, &Comment{}, &mentionAccount{}, &testNotification{}); err != nil {
 		t.Fatalf("migrate models: %v", err)
 	}
 	return NewCommentService(NewCommentRepository(db), NewRepository(db), nil), db
@@ -72,6 +72,39 @@ func TestGetAllCommentsReturnsAscendingOrder(t *testing.T) {
 	}
 }
 
+func TestPublishCommentCreatesMentionNotifications(t *testing.T) {
+	service, db := newCommentTestService(t)
+	video := createServiceTestVideo(t, db)
+	if err := db.Create(&mentionAccount{ID: 7, Username: "alice"}).Error; err != nil {
+		t.Fatalf("create author account: %v", err)
+	}
+	if err := db.Create(&mentionAccount{ID: 8, Username: "bob"}).Error; err != nil {
+		t.Fatalf("create mentioned account: %v", err)
+	}
+
+	_, err := service.Publish(context.Background(), PublishCommentInput{
+		VideoID:  video.ID,
+		AuthorID: 7,
+		Username: "alice",
+		Content:  "hello @bob @bob @alice @missing",
+	})
+	if err != nil {
+		t.Fatalf("publish comment: %v", err)
+	}
+
+	var notifications []testNotification
+	if err := db.Find(&notifications).Error; err != nil {
+		t.Fatalf("find notifications: %v", err)
+	}
+	if len(notifications) != 1 {
+		t.Fatalf("expected one mention notification, got %+v", notifications)
+	}
+	notification := notifications[0]
+	if notification.RecipientID != 8 || notification.SenderID != 7 || notification.Type != "mention" || notification.TargetID != video.ID {
+		t.Fatalf("unexpected mention notification: %+v", notification)
+	}
+}
+
 func TestDeleteCommentRequiresAuthor(t *testing.T) {
 	service, db := newCommentTestService(t)
 	video := createServiceTestVideo(t, db)
@@ -85,4 +118,26 @@ func TestDeleteCommentRequiresAuthor(t *testing.T) {
 	if !errors.Is(err, ErrUnauthorized) {
 		t.Fatalf("expected ErrUnauthorized, got %v", err)
 	}
+}
+
+type mentionAccount struct {
+	ID       uint
+	Username string
+}
+
+func (mentionAccount) TableName() string {
+	return "accounts"
+}
+
+type testNotification struct {
+	ID          uint
+	RecipientID uint
+	SenderID    uint
+	Type        string
+	TargetID    uint
+	Content     string
+}
+
+func (testNotification) TableName() string {
+	return "notifications"
 }

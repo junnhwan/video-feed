@@ -3,6 +3,7 @@ package feed
 import (
 	"context"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -107,6 +108,53 @@ func TestListLatestUsesRedisGlobalTimelineAndStitchesColdData(t *testing.T) {
 	_ = newest
 }
 
+func TestListLatestWarmsVideoEntityCacheFromTimeline(t *testing.T) {
+	service, db := newTestService(t)
+	mr, err := miniredis.Run()
+	if err != nil {
+		t.Fatalf("start miniredis: %v", err)
+	}
+	defer mr.Close()
+	cache := rediscache.NewClient(goredis.NewClient(&goredis.Options{Addr: mr.Addr()}), "")
+	defer cache.Close()
+	service.cache = cache
+
+	createdAt := time.Date(2026, 5, 20, 11, 0, 0, 0, time.UTC)
+	cached := createVideo(t, db, video.Video{AuthorID: 1, Username: "alice", Title: "cached title", PlayURL: "1.mp4", CoverURL: "1.jpg", CreatedAt: createdAt})
+	if err := cache.ZAdd(context.Background(), cache.Key("feed:global_timeline"), goredis.Z{
+		Score:  float64(cached.CreatedAt.UnixMilli()),
+		Member: strconv.FormatUint(uint64(cached.ID), 10),
+	}); err != nil {
+		t.Fatalf("seed timeline: %v", err)
+	}
+
+	first, err := service.ListLatest(context.Background(), 1, time.Time{}, 0)
+	if err != nil {
+		t.Fatalf("list latest first: %v", err)
+	}
+	if len(first.VideoList) != 1 || first.VideoList[0].Title != "cached title" {
+		t.Fatalf("unexpected first response: %+v", first.VideoList)
+	}
+	payload, err := cache.GetBytes(context.Background(), cache.Key("video:entity:%d", cached.ID))
+	if err != nil {
+		t.Fatalf("expected redis entity cache warmed: %v", err)
+	}
+	if !strings.Contains(string(payload), "cached title") {
+		t.Fatalf("expected cached entity payload to include original title, got %s", string(payload))
+	}
+
+	if err := db.Model(&video.Video{}).Where("id = ?", cached.ID).Update("title", "updated title").Error; err != nil {
+		t.Fatalf("update video title: %v", err)
+	}
+	second, err := service.ListLatest(context.Background(), 1, time.Time{}, 0)
+	if err != nil {
+		t.Fatalf("list latest second: %v", err)
+	}
+	if len(second.VideoList) != 1 || second.VideoList[0].Title != "cached title" {
+		t.Fatalf("expected second response from entity cache, got %+v", second.VideoList)
+	}
+}
+
 func TestListLikesCountUsesCompositeCursor(t *testing.T) {
 	service, db := newTestService(t)
 	first := createVideo(t, db, video.Video{AuthorID: 1, Username: "alice", Title: "first", PlayURL: "1.mp4", CoverURL: "1.jpg", LikesCount: 10})
@@ -159,6 +207,42 @@ func TestListByFollowingOnlyReturnsFollowedAuthors(t *testing.T) {
 	}
 	if resp.VideoList[0].Author.ID != 2 {
 		t.Fatalf("expected author 2, got %d", resp.VideoList[0].Author.ID)
+	}
+}
+
+func TestListByFollowingCachesResponseByViewerAndCursor(t *testing.T) {
+	service, db := newTestService(t)
+	mr, err := miniredis.Run()
+	if err != nil {
+		t.Fatalf("start miniredis: %v", err)
+	}
+	defer mr.Close()
+	cache := rediscache.NewClient(goredis.NewClient(&goredis.Options{Addr: mr.Addr()}), "")
+	defer cache.Close()
+	service.cache = cache
+
+	followed := createVideo(t, db, video.Video{AuthorID: 2, Username: "bob", Title: "followed", PlayURL: "1.mp4", CoverURL: "1.jpg"})
+	if err := db.Create(&social.Social{FollowerID: 1, VloggerID: 2}).Error; err != nil {
+		t.Fatalf("create follow relation: %v", err)
+	}
+
+	first, err := service.ListByFollowing(context.Background(), 10, time.Time{}, 1)
+	if err != nil {
+		t.Fatalf("list by following first: %v", err)
+	}
+	if len(first.VideoList) != 1 || first.VideoList[0].Title != "followed" {
+		t.Fatalf("unexpected first following response: %+v", first.VideoList)
+	}
+	if err := db.Model(&video.Video{}).Where("id = ?", followed.ID).Update("title", "updated").Error; err != nil {
+		t.Fatalf("update followed video: %v", err)
+	}
+
+	second, err := service.ListByFollowing(context.Background(), 10, time.Time{}, 1)
+	if err != nil {
+		t.Fatalf("list by following second: %v", err)
+	}
+	if len(second.VideoList) != 1 || second.VideoList[0].Title != "followed" {
+		t.Fatalf("expected cached following response, got %+v", second.VideoList)
 	}
 }
 

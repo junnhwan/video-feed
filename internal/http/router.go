@@ -3,6 +3,7 @@ package http
 import (
 	"context"
 	"log"
+	"net/http"
 	"time"
 
 	"video-feed/internal/account"
@@ -54,6 +55,7 @@ func NewRouterWithPublishers(database *gorm.DB, tokenCache *rediscache.Client, p
 		{
 			protectedAccountGroup.POST("/logout", accountHandler.Logout)
 			protectedAccountGroup.POST("/rename", accountHandler.Rename)
+			protectedAccountGroup.POST("/uploadAvatar", accountHandler.UploadAvatar)
 			protectedAccountGroup.POST("/updateProfile", accountHandler.UpdateProfile)
 		}
 
@@ -127,6 +129,56 @@ func NewRouterWithPublishers(database *gorm.DB, tokenCache *rediscache.Client, p
 			socialGroup.POST("/getAllVloggers", socialHandler.GetAllVloggers)
 			socialGroup.POST("/getCounts", socialHandler.GetCounts)
 		}
+		accountGroup.POST("/getProfile", func(c *gin.Context) {
+			var req struct {
+				AccountID uint `json:"account_id"`
+			}
+			if err := c.ShouldBindJSON(&req); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+				return
+			}
+			if req.AccountID == 0 {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "account_id is required"})
+				return
+			}
+			profileAccount, err := accountService.FindByID(c.Request.Context(), req.AccountID)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+			videoCount, err := videoRepo.CountByAuthor(c.Request.Context(), req.AccountID)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+			totalLikes, err := videoRepo.TotalLikesByAuthor(c.Request.Context(), req.AccountID)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+			followerCount, err := socialRepo.CountFollowers(c.Request.Context(), req.AccountID)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+			vloggerCount, err := socialRepo.CountVloggers(c.Request.Context(), req.AccountID)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+			c.JSON(http.StatusOK, gin.H{
+				"account": gin.H{
+					"id":         profileAccount.ID,
+					"username":   profileAccount.Username,
+					"avatar_url": profileAccount.AvatarURL,
+					"bio":        profileAccount.Bio,
+				},
+				"video_count":    videoCount,
+				"total_likes":    totalLikes,
+				"follower_count": followerCount,
+				"vlogger_count":  vloggerCount,
+			})
+		})
 
 		feedRepo := feed.NewRepository(database)
 		feedService := feed.NewService(feedRepo, likeRepo, tokenCache)

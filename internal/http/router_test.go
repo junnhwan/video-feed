@@ -3,8 +3,11 @@ package http
 import (
 	"bytes"
 	"encoding/json"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strconv"
 	"testing"
 
@@ -169,6 +172,133 @@ func TestRefreshReturnsNewAccessToken(t *testing.T) {
 	}
 	if refreshResponse.Token == "" {
 		t.Fatal("expected refreshed access token")
+	}
+}
+
+func TestAccountUploadAvatarStoresProfileURL(t *testing.T) {
+	workDir := t.TempDir()
+	oldDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("get cwd: %v", err)
+	}
+	if err := os.Chdir(workDir); err != nil {
+		t.Fatalf("chdir temp: %v", err)
+	}
+	defer func() {
+		if err := os.Chdir(oldDir); err != nil {
+			t.Fatalf("restore cwd: %v", err)
+		}
+	}()
+
+	database, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	if err := database.AutoMigrate(&account.Account{}, &video.Video{}, &video.OutboxMsg{}, &video.Like{}, &video.Comment{}, &social.Social{}); err != nil {
+		t.Fatalf("migrate models: %v", err)
+	}
+	router := NewRouter(database)
+	token := registerAndLogin(t, router)
+
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	part, err := writer.CreateFormFile("file", "avatar.png")
+	if err != nil {
+		t.Fatalf("create form file: %v", err)
+	}
+	if _, err := part.Write([]byte("fake png bytes")); err != nil {
+		t.Fatalf("write form file: %v", err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("close multipart writer: %v", err)
+	}
+
+	req := httptest.NewRequest("POST", "/account/uploadAvatar", &body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("upload avatar expected 200, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var response struct {
+		AvatarURL string `json:"avatar_url"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatalf("decode avatar response: %v", err)
+	}
+	if response.AvatarURL == "" {
+		t.Fatal("expected avatar_url")
+	}
+	var stored account.Account
+	if err := database.First(&stored, 1).Error; err != nil {
+		t.Fatalf("find account: %v", err)
+	}
+	if stored.AvatarURL != response.AvatarURL {
+		t.Fatalf("expected avatar stored as %q, got %q", response.AvatarURL, stored.AvatarURL)
+	}
+	if _, err := os.Stat(filepath.Join(workDir, ".run", "uploads", "avatars", "1")); err != nil {
+		t.Fatalf("expected avatar upload directory: %v", err)
+	}
+}
+
+func TestAccountGetProfileAggregatesCounts(t *testing.T) {
+	database, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	if err := database.AutoMigrate(&account.Account{}, &video.Video{}, &video.OutboxMsg{}, &video.Like{}, &video.Comment{}, &social.Social{}); err != nil {
+		t.Fatalf("migrate models: %v", err)
+	}
+	if err := database.Create(&account.Account{ID: 1, Username: "alice", Password: "hash", AvatarURL: "http://example.com/a.png", Bio: "creator"}).Error; err != nil {
+		t.Fatalf("create account: %v", err)
+	}
+	if err := database.Create(&account.Account{ID: 2, Username: "bob", Password: "hash"}).Error; err != nil {
+		t.Fatalf("create follower: %v", err)
+	}
+	if err := database.Create(&video.Video{AuthorID: 1, Username: "alice", Title: "v1", PlayURL: "1.mp4", CoverURL: "1.jpg", LikesCount: 3}).Error; err != nil {
+		t.Fatalf("create first video: %v", err)
+	}
+	if err := database.Create(&video.Video{AuthorID: 1, Username: "alice", Title: "v2", PlayURL: "2.mp4", CoverURL: "2.jpg", LikesCount: 5}).Error; err != nil {
+		t.Fatalf("create second video: %v", err)
+	}
+	if err := database.Create(&social.Social{FollowerID: 2, VloggerID: 1}).Error; err != nil {
+		t.Fatalf("create follower relation: %v", err)
+	}
+	if err := database.Create(&social.Social{FollowerID: 1, VloggerID: 2}).Error; err != nil {
+		t.Fatalf("create vlogger relation: %v", err)
+	}
+	router := NewRouter(database)
+
+	req := httptest.NewRequest("POST", "/account/getProfile", bytes.NewBufferString(`{"account_id":1}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("get profile expected 200, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var response struct {
+		Account struct {
+			ID        uint   `json:"id"`
+			Username  string `json:"username"`
+			AvatarURL string `json:"avatar_url"`
+			Bio       string `json:"bio"`
+		} `json:"account"`
+		VideoCount    int64 `json:"video_count"`
+		TotalLikes    int64 `json:"total_likes"`
+		FollowerCount int64 `json:"follower_count"`
+		VloggerCount  int64 `json:"vlogger_count"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatalf("decode profile response: %v", err)
+	}
+	if response.Account.ID != 1 || response.Account.Username != "alice" {
+		t.Fatalf("unexpected profile account: %+v", response.Account)
+	}
+	if response.VideoCount != 2 || response.TotalLikes != 8 || response.FollowerCount != 1 || response.VloggerCount != 1 {
+		t.Fatalf("unexpected profile counts: %+v", response)
 	}
 }
 

@@ -76,6 +76,13 @@ func (c *Client) SetBytes(ctx context.Context, key string, value []byte, ttl tim
 	return c.rdb.Set(ctx, key, value, ttl).Err()
 }
 
+func (c *Client) MGet(ctx context.Context, keys ...string) ([]any, error) {
+	if c == nil || c.rdb == nil {
+		return nil, goredis.Nil
+	}
+	return c.rdb.MGet(ctx, keys...).Result()
+}
+
 func (c *Client) Del(ctx context.Context, key string) error {
 	if c == nil || c.rdb == nil {
 		return nil
