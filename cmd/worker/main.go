@@ -12,13 +12,17 @@ import (
 	"video-feed/internal/db"
 	"video-feed/internal/middleware/rabbitmq"
 	rediscache "video-feed/internal/middleware/redis"
+	"video-feed/internal/observability"
 	"video-feed/internal/social"
 	"video-feed/internal/video"
 	"video-feed/internal/worker"
 )
 
 func main() {
-	cfg := config.Default()
+	cfg, err := config.Load(os.Getenv("CONFIG_PATH"))
+	if err != nil {
+		log.Fatalf("load config: %v", err)
+	}
 	database, err := db.Open(cfg.Database)
 	if err != nil {
 		log.Fatalf("open database: %v", err)
@@ -48,6 +52,14 @@ func main() {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+
+	pprofServer, err := observability.NewPprofServer("worker", cfg.Observability.Pprof.Enabled, cfg.Observability.Pprof.WorkerAddr)
+	if err != nil {
+		log.Printf("pprof unavailable: %v", err)
+	}
+	if pprofServer != nil {
+		defer pprofServer.Close()
+	}
 
 	likeRepo := video.NewLikeRepository(database)
 	videoRepo := video.NewRepository(database)

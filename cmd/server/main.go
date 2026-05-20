@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"log"
+	"os"
 	"strconv"
 	"time"
 
@@ -13,13 +14,17 @@ import (
 	"video-feed/internal/message"
 	"video-feed/internal/middleware/rabbitmq"
 	rediscache "video-feed/internal/middleware/redis"
+	"video-feed/internal/observability"
 	"video-feed/internal/social"
 	"video-feed/internal/video"
 	"video-feed/internal/worker"
 )
 
 func main() {
-	cfg := config.Default()
+	cfg, err := config.Load(os.Getenv("CONFIG_PATH"))
+	if err != nil {
+		log.Fatalf("load config: %v", err)
+	}
 	database, err := db.Open(cfg.Database)
 	if err != nil {
 		log.Fatalf("open database: %v", err)
@@ -38,6 +43,14 @@ func main() {
 	cancel()
 	if cache != nil {
 		defer cache.Close()
+	}
+
+	pprofServer, err := observability.NewPprofServer("api", cfg.Observability.Pprof.Enabled, cfg.Observability.Pprof.APIAddr)
+	if err != nil {
+		log.Printf("pprof unavailable: %v", err)
+	}
+	if pprofServer != nil {
+		defer pprofServer.Close()
 	}
 
 	var publishers *rabbitmq.Publishers

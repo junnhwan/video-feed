@@ -1,0 +1,28 @@
+server:
+  port: 8080
+
+database:
+  driver: mysql
+  host: 127.0.0.1
+  port: 3306
+  user: root
+  password: "123456"
+  dbname: video_feed
+
+redis:
+  host: 127.0.0.1
+  port: 6379
+  password: ""
+  db: 0
+
+rabbitmq:
+  host: 127.0.0.1
+  port: 5672
+  username: admin
+  password: password123
+
+observability:
+  pprof:
+    enabled: true
+    api_addr: 127.0.0.1:6060
+    worker_addr: 127.0.0.1:6061
