@@ -55,6 +55,9 @@ func TestListLatestUsesTimeCursor(t *testing.T) {
 	if firstPage.VideoList[0].ID != newest.ID || firstPage.VideoList[1].ID != middle.ID {
 		t.Fatalf("expected newest then middle, got %+v", firstPage.VideoList)
 	}
+	if firstPage.VideoList[0].CreateTime != newest.CreatedAt.Unix() {
+		t.Fatalf("expected feed item create_time in Unix seconds, got %d", firstPage.VideoList[0].CreateTime)
+	}
 	if !firstPage.HasMore {
 		t.Fatal("expected has_more true for full page")
 	}
@@ -207,6 +210,9 @@ func TestListByFollowingOnlyReturnsFollowedAuthors(t *testing.T) {
 	}
 	if resp.VideoList[0].Author.ID != 2 {
 		t.Fatalf("expected author 2, got %d", resp.VideoList[0].Author.ID)
+	}
+	if resp.NextTime != resp.VideoList[0].CreateTime {
+		t.Fatalf("expected following next_time to use Unix seconds cursor, got next_time=%d item_time=%d", resp.NextTime, resp.VideoList[0].CreateTime)
 	}
 }
 

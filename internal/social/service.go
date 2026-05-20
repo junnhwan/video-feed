@@ -47,9 +47,7 @@ func (s *Service) Follow(ctx context.Context, followerID uint, vloggerID uint) e
 		return ErrAlreadyFollowed
 	}
 	if s.publisher != nil {
-		if err := s.publisher.Follow(ctx, followerID, vloggerID); err == nil {
-			return nil
-		}
+		_ = s.publisher.Follow(ctx, followerID, vloggerID)
 	}
 	return s.repo.Follow(ctx, followerID, vloggerID)
 }
@@ -66,9 +64,7 @@ func (s *Service) Unfollow(ctx context.Context, followerID uint, vloggerID uint)
 		return ErrNotFollowed
 	}
 	if s.publisher != nil {
-		if err := s.publisher.Unfollow(ctx, followerID, vloggerID); err == nil {
-			return nil
-		}
+		_ = s.publisher.Unfollow(ctx, followerID, vloggerID)
 	}
 	return s.repo.Unfollow(ctx, followerID, vloggerID)
 }

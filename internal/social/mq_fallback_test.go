@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func TestFollowUsesMQWhenPublisherSucceeds(t *testing.T) {
+func TestFollowPersistsRelationAndPublishesEventWhenPublisherSucceeds(t *testing.T) {
 	service, db := newSocialTestService(t)
 	createAccount(t, db, 1, "alice")
 	createAccount(t, db, 2, "bob")
@@ -24,8 +24,8 @@ func TestFollowUsesMQWhenPublisherSucceeds(t *testing.T) {
 	if err != nil {
 		t.Fatalf("is followed: %v", err)
 	}
-	if isFollowed {
-		t.Fatal("expected API path to skip direct DB write when MQ succeeds")
+	if !isFollowed {
+		t.Fatal("expected relation to be persisted immediately even when MQ succeeds")
 	}
 }
 

@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"testing"
+	"time"
 
 	"video-feed/internal/account"
 	"video-feed/internal/social"
@@ -476,6 +477,89 @@ func TestSocialRoutesFollowAndCounts(t *testing.T) {
 	}
 	if counts.VloggerCount != 1 {
 		t.Fatalf("expected vlogger_count 1, got %d", counts.VloggerCount)
+	}
+}
+
+func TestListByFollowingRouteUsesUnixSecondCursor(t *testing.T) {
+	database, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	if err := database.AutoMigrate(&account.Account{}, &video.Video{}, &video.OutboxMsg{}, &video.Like{}, &video.Comment{}, &social.Social{}); err != nil {
+		t.Fatalf("migrate models: %v", err)
+	}
+	router := NewRouter(database)
+	token := registerAndLogin(t, router)
+	if err := database.Create(&account.Account{ID: 2, Username: "bob", Password: "hash"}).Error; err != nil {
+		t.Fatalf("create bob: %v", err)
+	}
+	if err := database.Create(&social.Social{FollowerID: 1, VloggerID: 2}).Error; err != nil {
+		t.Fatalf("create follow relation: %v", err)
+	}
+	base := time.Date(2026, 5, 20, 13, 0, 0, 0, time.UTC)
+	oldVideo := video.Video{AuthorID: 2, Username: "bob", Title: "old", PlayURL: "old.mp4", CoverURL: "old.jpg", CreatedAt: base}
+	newVideo := video.Video{AuthorID: 2, Username: "bob", Title: "new", PlayURL: "new.mp4", CoverURL: "new.jpg", CreatedAt: base.Add(time.Minute)}
+	if err := database.Create(&oldVideo).Error; err != nil {
+		t.Fatalf("create old video: %v", err)
+	}
+	if err := database.Create(&newVideo).Error; err != nil {
+		t.Fatalf("create new video: %v", err)
+	}
+
+	body := bytes.NewBufferString(`{"limit":10,"latest_time":` + strconv.FormatInt(newVideo.CreatedAt.Unix(), 10) + `}`)
+	req := httptest.NewRequest("POST", "/feed/listByFollowing", body)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("following feed expected 200, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var response struct {
+		VideoList []struct {
+			Title string `json:"title"`
+		} `json:"video_list"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatalf("decode following response: %v", err)
+	}
+	if len(response.VideoList) != 1 || response.VideoList[0].Title != "old" {
+		t.Fatalf("expected second page old video, got %+v", response.VideoList)
+	}
+}
+
+func TestFeedRoutesValidateSourceCursorContracts(t *testing.T) {
+	database, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	if err := database.AutoMigrate(&account.Account{}, &video.Video{}, &video.OutboxMsg{}, &video.Like{}, &video.Comment{}, &social.Social{}, &video.Tag{}, &video.VideoTag{}); err != nil {
+		t.Fatalf("migrate models: %v", err)
+	}
+	router := NewRouter(database)
+
+	cases := []struct {
+		name string
+		path string
+		body string
+	}{
+		{name: "empty tag", path: "/feed/listByTag", body: `{"tag_name":"","limit":10}`},
+		{name: "negative likes cursor", path: "/feed/listLikesCount", body: `{"limit":10,"likes_count_before":-1,"id_before":1}`},
+		{name: "popularity negative cursor", path: "/feed/listByPopularity", body: `{"limit":10,"latest_popularity":-1}`},
+		{name: "popularity partial cursor", path: "/feed/listByPopularity", body: `{"limit":10,"latest_before":"2026-05-20T00:00:00Z"}`},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest("POST", tc.path, bytes.NewBufferString(tc.body))
+			req.Header.Set("Content-Type", "application/json")
+			rec := httptest.NewRecorder()
+			router.ServeHTTP(rec, req)
+			if rec.Code != http.StatusBadRequest {
+				t.Fatalf("expected 400, got %d body=%s", rec.Code, rec.Body.String())
+			}
+		})
 	}
 }
 

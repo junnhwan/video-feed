@@ -55,7 +55,7 @@ func (s *Service) ListLatest(ctx context.Context, limit int, latestBefore time.T
 	}
 	return ListLatestResponse{
 		VideoList: items,
-		NextTime:  nextTime(videos),
+		NextTime:  nextTimeMilli(videos),
 		HasMore:   len(videos) == limit,
 	}, nil
 }
@@ -70,7 +70,11 @@ func (s *Service) listLatestFromGlobalTimeline(ctx context.Context, limit int, l
 		return nil, false, nil
 	}
 	if len(tail) == 0 {
-		if err := s.rebuildGlobalTimeline(ctx, key); err != nil {
+		sfKey := s.cache.Key("sf:fallback:global_timeline_rebuild")
+		_, rebuildErr, _ := s.requestGroup.Do(sfKey, func() (any, error) {
+			return nil, s.rebuildGlobalTimeline(ctx, key)
+		})
+		if rebuildErr != nil {
 			return nil, false, nil
 		}
 		tail, err = s.cache.ZRangeWithScores(ctx, key, 0, 0)
@@ -88,8 +92,15 @@ func (s *Service) listLatestFromGlobalTimeline(ctx context.Context, limit int, l
 	}
 	watermark := int64(tail[0].Score)
 	if reqTime <= watermark {
-		videos, err := s.repo.ListLatest(ctx, limit, latestBefore)
-		return videos, true, err
+		sfKey := s.cache.Key("sf:cold:listLatest:%d:%d", limit, reqTime)
+		value, err, _ := s.requestGroup.Do(sfKey, func() (any, error) {
+			return s.repo.ListLatest(ctx, limit, latestBefore)
+		})
+		if err != nil {
+			return nil, true, err
+		}
+		videos, _ := value.([]*video.Video)
+		return videos, true, nil
 	}
 
 	maxScore := "+inf"
@@ -116,10 +127,15 @@ func (s *Service) listLatestFromGlobalTimeline(ctx context.Context, limit int, l
 		if len(videos) > 0 {
 			coldCursor = videos[len(videos)-1].CreatedAt
 		}
-		coldVideos, err := s.repo.ListLatest(ctx, limit-len(videos), coldCursor)
+		remainLimit := limit - len(videos)
+		sfKey := s.cache.Key("sf:stitch:listLatest:%d:%d", remainLimit, coldCursor.UnixMilli())
+		value, err, _ := s.requestGroup.Do(sfKey, func() (any, error) {
+			return s.repo.ListLatest(ctx, remainLimit, coldCursor)
+		})
 		if err != nil {
 			return nil, true, err
 		}
+		coldVideos, _ := value.([]*video.Video)
 		videos = append(videos, coldVideos...)
 	}
 	return videos, true, nil
@@ -351,7 +367,7 @@ func (s *Service) listByFollowingFromDB(ctx context.Context, limit int, latestBe
 	}
 	return ListByFollowingResponse{
 		VideoList: items,
-		NextTime:  nextTime(videos),
+		NextTime:  nextTimeSecond(videos),
 		HasMore:   len(videos) == limit,
 	}, nil
 }
@@ -413,7 +429,7 @@ func (s *Service) setCachedFollowing(ctx context.Context, cacheKey string, resp 
 func (s *Service) followingCacheKey(limit int, latestBefore time.Time, viewerAccountID uint) string {
 	before := int64(0)
 	if !latestBefore.IsZero() {
-		before = latestBefore.UnixMilli()
+		before = latestBefore.Unix()
 	}
 	return s.cache.Key("feed:listByFollowing:limit=%d:accountID=%d:before=%d", limit, viewerAccountID, before)
 }
@@ -568,7 +584,7 @@ func (s *Service) buildFeedVideos(ctx context.Context, videos []*video.Video, vi
 			Description: item.Description,
 			PlayURL:     item.PlayURL,
 			CoverURL:    item.CoverURL,
-			CreateTime:  item.CreatedAt.UnixMilli(),
+			CreateTime:  item.CreatedAt.Unix(),
 			LikesCount:  item.LikesCount,
 			IsLiked:     likedMap[item.ID],
 		})
@@ -583,9 +599,16 @@ func normalizeLimit(limit int) int {
 	return limit
 }
 
-func nextTime(videos []*video.Video) int64 {
+func nextTimeMilli(videos []*video.Video) int64 {
 	if len(videos) == 0 {
 		return 0
 	}
 	return videos[len(videos)-1].CreatedAt.UnixMilli()
+}
+
+func nextTimeSecond(videos []*video.Video) int64 {
+	if len(videos) == 0 {
+		return 0
+	}
+	return videos[len(videos)-1].CreatedAt.Unix()
 }
