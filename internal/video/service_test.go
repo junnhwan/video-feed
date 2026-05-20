@@ -29,6 +29,7 @@ func TestPublishCreatesVideo(t *testing.T) {
 
 	video, err := service.Publish(context.Background(), PublishInput{
 		AuthorID:    7,
+		Username:    "alice",
 		Title:       "first vlog",
 		Description: "hello",
 		PlayURL:     "http://example.com/video.mp4",
@@ -61,6 +62,7 @@ func TestGetDetailReturnsPublishedVideo(t *testing.T) {
 	ctx := context.Background()
 	published, err := service.Publish(ctx, PublishInput{
 		AuthorID: 7,
+		Username: "alice",
 		Title:    "first vlog",
 		PlayURL:  "http://example.com/video.mp4",
 		CoverURL: "http://example.com/cover.jpg",
@@ -84,6 +86,7 @@ func TestListByAuthorIDReturnsNewestFirst(t *testing.T) {
 	ctx := context.Background()
 	first, err := service.Publish(ctx, PublishInput{
 		AuthorID: 7,
+		Username: "alice",
 		Title:    "first vlog",
 		PlayURL:  "http://example.com/1.mp4",
 		CoverURL: "http://example.com/1.jpg",
@@ -94,6 +97,7 @@ func TestListByAuthorIDReturnsNewestFirst(t *testing.T) {
 	time.Sleep(time.Millisecond)
 	second, err := service.Publish(ctx, PublishInput{
 		AuthorID: 7,
+		Username: "alice",
 		Title:    "second vlog",
 		PlayURL:  "http://example.com/2.mp4",
 		CoverURL: "http://example.com/2.jpg",

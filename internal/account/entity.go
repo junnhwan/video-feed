@@ -5,7 +5,11 @@ import "time"
 type Account struct {
 	ID           uint      `gorm:"primaryKey" json:"id"`
 	Username     string    `gorm:"uniqueIndex;size:64;not null" json:"username"`
-	PasswordHash string    `gorm:"size:255;not null" json:"-"`
+	Password     string    `gorm:"size:255;not null" json:"-"`
+	Token        string    `gorm:"size:512" json:"-"`
+	RefreshToken string    `gorm:"size:128" json:"-"`
+	AvatarURL    string    `gorm:"type:varchar(512)" json:"avatar_url,omitempty"`
+	Bio          string    `gorm:"type:varchar(255)" json:"bio,omitempty"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
 }
@@ -29,7 +33,45 @@ type findByIDRequest struct {
 	ID uint `json:"id"`
 }
 
-type accountResponse struct {
-	ID       uint   `json:"id"`
+type findByUsernameRequest struct {
 	Username string `json:"username"`
+}
+
+type changePasswordRequest struct {
+	Username    string `json:"username"`
+	OldPassword string `json:"old_password"`
+	NewPassword string `json:"new_password"`
+}
+
+type renameRequest struct {
+	NewUsername string `json:"new_username"`
+}
+
+type refreshRequest struct {
+	RefreshToken string `json:"refresh_token"`
+}
+
+type updateProfileRequest struct {
+	AvatarURL string `json:"avatar_url"`
+	Bio       string `json:"bio"`
+}
+
+type accountResponse struct {
+	ID        uint   `json:"id"`
+	Username  string `json:"username"`
+	AvatarURL string `json:"avatar_url,omitempty"`
+	Bio       string `json:"bio,omitempty"`
+}
+
+type LoginResult struct {
+	Account      *Account
+	Token        string
+	RefreshToken string
+}
+
+type loginResponse struct {
+	Token        string `json:"token"`
+	RefreshToken string `json:"refresh_token,omitempty"`
+	AccountID    uint   `json:"account_id"`
+	Username     string `json:"username"`
 }

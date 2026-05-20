@@ -4,6 +4,8 @@ import (
 	"errors"
 	"net/http"
 
+	authjwt "video-feed/internal/middleware/jwt"
+
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
@@ -22,9 +24,20 @@ func (h *Handler) Publish(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	accountID, err := authjwt.GetAccountID(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		return
+	}
+	username, err := authjwt.GetUsername(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		return
+	}
 
 	video, err := h.service.Publish(c.Request.Context(), PublishInput{
-		AuthorID:    req.AuthorID,
+		AuthorID:    accountID,
+		Username:    username,
 		Title:       req.Title,
 		Description: req.Description,
 		PlayURL:     req.PlayURL,

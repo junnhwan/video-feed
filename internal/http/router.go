@@ -2,6 +2,7 @@ package http
 
 import (
 	"video-feed/internal/account"
+	authjwt "video-feed/internal/middleware/jwt"
 	"video-feed/internal/video"
 
 	"github.com/gin-gonic/gin"
@@ -22,7 +23,17 @@ func NewRouter(database *gorm.DB) *gin.Engine {
 		{
 			accountGroup.POST("/register", accountHandler.Register)
 			accountGroup.POST("/login", accountHandler.Login)
+			accountGroup.POST("/refresh", accountHandler.Refresh)
+			accountGroup.POST("/changePassword", accountHandler.ChangePassword)
 			accountGroup.POST("/findByID", accountHandler.FindByID)
+			accountGroup.POST("/findByUsername", accountHandler.FindByUsername)
+		}
+		protectedAccountGroup := accountGroup.Group("")
+		protectedAccountGroup.Use(authjwt.JWTAuth(accountRepo))
+		{
+			protectedAccountGroup.POST("/logout", accountHandler.Logout)
+			protectedAccountGroup.POST("/rename", accountHandler.Rename)
+			protectedAccountGroup.POST("/updateProfile", accountHandler.UpdateProfile)
 		}
 
 		videoRepo := video.NewRepository(database)
@@ -31,9 +42,13 @@ func NewRouter(database *gorm.DB) *gin.Engine {
 
 		videoGroup := router.Group("/video")
 		{
-			videoGroup.POST("/publish", videoHandler.Publish)
 			videoGroup.POST("/getDetail", videoHandler.GetDetail)
 			videoGroup.POST("/listByAuthorID", videoHandler.ListByAuthorID)
+		}
+		protectedVideoGroup := videoGroup.Group("")
+		protectedVideoGroup.Use(authjwt.JWTAuth(accountRepo))
+		{
+			protectedVideoGroup.POST("/publish", videoHandler.Publish)
 		}
 	}
 	return router

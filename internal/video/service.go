@@ -18,14 +18,16 @@ func NewService(repo *Repository) *Service {
 
 func (s *Service) Publish(ctx context.Context, input PublishInput) (*Video, error) {
 	title := strings.TrimSpace(input.Title)
+	username := strings.TrimSpace(input.Username)
 	playURL := strings.TrimSpace(input.PlayURL)
 	coverURL := strings.TrimSpace(input.CoverURL)
-	if input.AuthorID == 0 || title == "" || playURL == "" || coverURL == "" {
+	if input.AuthorID == 0 || username == "" || title == "" || playURL == "" || coverURL == "" {
 		return nil, ErrInvalidInput
 	}
 
 	video := &Video{
 		AuthorID:    input.AuthorID,
+		Username:    username,
 		Title:       title,
 		Description: strings.TrimSpace(input.Description),
 		PlayURL:     playURL,
