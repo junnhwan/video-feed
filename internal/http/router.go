@@ -73,6 +73,11 @@ func NewRouterWithPublishers(database *gorm.DB, tokenCache *rediscache.Client, p
 			protectedVideoGroup.POST("/delete", videoHandler.DeleteVideo)
 			protectedVideoGroup.POST("/uploadVideo", videoHandler.UploadVideo)
 			protectedVideoGroup.POST("/uploadCover", videoHandler.UploadCover)
+			chunkHandler := video.NewChunkUploadHandler(tokenCache)
+			protectedVideoGroup.POST("/chunk/init", chunkHandler.InitChunkUpload)
+			protectedVideoGroup.POST("/chunk/upload", chunkHandler.UploadChunk)
+			protectedVideoGroup.POST("/chunk/status", chunkHandler.ChunkStatus)
+			protectedVideoGroup.POST("/chunk/complete", chunkHandler.CompleteChunkUpload)
 		}
 
 		likeRepo := video.NewLikeRepository(database)
