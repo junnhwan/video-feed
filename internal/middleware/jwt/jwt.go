@@ -1,17 +1,25 @@
 package jwt
 
 import (
+	"context"
 	"errors"
+	"log"
 	"net/http"
 	"strings"
+	"time"
 
 	"video-feed/internal/account"
 	"video-feed/internal/auth"
+	rediscache "video-feed/internal/middleware/redis"
 
 	"github.com/gin-gonic/gin"
 )
 
-func JWTAuth(accountRepo *account.Repository) gin.HandlerFunc {
+func JWTAuth(accountRepo *account.Repository, cache ...*rediscache.Client) gin.HandlerFunc {
+	var tokenCache *rediscache.Client
+	if len(cache) > 0 {
+		tokenCache = cache[0]
+	}
 	return func(c *gin.Context) {
 		tokenString, ok := bearerToken(c)
 		if !ok {
@@ -24,11 +32,15 @@ func JWTAuth(accountRepo *account.Repository) gin.HandlerFunc {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid or expired token"})
 			return
 		}
-		check(c, claims, tokenString, accountRepo)
+		check(c, claims, tokenString, accountRepo, tokenCache)
 	}
 }
 
-func SoftJWTAuth(accountRepo *account.Repository) gin.HandlerFunc {
+func SoftJWTAuth(accountRepo *account.Repository, cache ...*rediscache.Client) gin.HandlerFunc {
+	var tokenCache *rediscache.Client
+	if len(cache) > 0 {
+		tokenCache = cache[0]
+	}
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
@@ -47,7 +59,7 @@ func SoftJWTAuth(accountRepo *account.Repository) gin.HandlerFunc {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid or expired token"})
 			return
 		}
-		check(c, claims, tokenString, accountRepo)
+		check(c, claims, tokenString, accountRepo, tokenCache)
 	}
 }
 
@@ -84,10 +96,26 @@ func bearerToken(c *gin.Context) (string, bool) {
 	return parts[1], true
 }
 
-func check(c *gin.Context, claims *auth.Claims, tokenString string, accountRepo *account.Repository) {
+func check(c *gin.Context, claims *auth.Claims, tokenString string, accountRepo *account.Repository, cache *rediscache.Client) {
 	if accountRepo == nil {
 		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "token validation unavailable"})
 		return
+	}
+
+	if cache != nil {
+		key := cache.Key("account:%d", claims.AccountID)
+		cacheCtx, cancel := contextWithShortTimeout(c)
+		defer cancel()
+		cached, err := cache.GetBytes(cacheCtx, key)
+		if err == nil {
+			if string(cached) != tokenString {
+				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "token has been revoked"})
+				return
+			}
+			setIdentity(c, claims)
+			c.Next()
+			return
+		}
 	}
 
 	accountInfo, err := accountRepo.FindByID(c.Request.Context(), claims.AccountID)
@@ -96,7 +124,23 @@ func check(c *gin.Context, claims *auth.Claims, tokenString string, accountRepo 
 		return
 	}
 
+	if cache != nil {
+		cacheCtx, cancel := contextWithShortTimeout(c)
+		defer cancel()
+		if err := cache.SetBytes(cacheCtx, cache.Key("account:%d", claims.AccountID), []byte(tokenString), 24*time.Hour); err != nil {
+			log.Printf("failed to backfill account token cache: %v", err)
+		}
+	}
+
+	setIdentity(c, claims)
+	c.Next()
+}
+
+func setIdentity(c *gin.Context, claims *auth.Claims) {
 	c.Set("accountID", claims.AccountID)
 	c.Set("username", claims.Username)
-	c.Next()
+}
+
+func contextWithShortTimeout(c *gin.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(c.Request.Context(), 50*time.Millisecond)
 }

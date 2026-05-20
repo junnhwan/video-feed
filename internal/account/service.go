@@ -3,9 +3,13 @@ package account
 import (
 	"context"
 	"errors"
+	"log"
+	"strconv"
 	"strings"
+	"time"
 
 	"video-feed/internal/auth"
+	rediscache "video-feed/internal/middleware/redis"
 
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
@@ -19,11 +23,16 @@ var (
 )
 
 type Service struct {
-	repo *Repository
+	repo  *Repository
+	cache *rediscache.Client
 }
 
-func NewService(repo *Repository) *Service {
-	return &Service{repo: repo}
+func NewService(repo *Repository, cache ...*rediscache.Client) *Service {
+	service := &Service{repo: repo}
+	if len(cache) > 0 {
+		service.cache = cache[0]
+	}
+	return service
 }
 
 func (s *Service) Register(ctx context.Context, input RegisterInput) (*Account, error) {
@@ -75,6 +84,8 @@ func (s *Service) Login(ctx context.Context, username, password string) (*LoginR
 	if err := s.repo.SaveTokens(ctx, account.ID, token, refreshToken); err != nil {
 		return nil, err
 	}
+	s.cacheToken(ctx, account.ID, token)
+	s.cacheRefreshToken(ctx, account.ID, refreshToken)
 	account.Token = token
 	account.RefreshToken = refreshToken
 	return &LoginResult{Account: account, Token: token, RefreshToken: refreshToken}, nil
@@ -118,11 +129,34 @@ func (s *Service) Rename(ctx context.Context, accountID uint, newUsername string
 	if err := s.repo.RenameWithToken(ctx, accountID, newUsername, token); err != nil {
 		return "", err
 	}
+	s.cacheToken(ctx, accountID, token)
 	return token, nil
 }
 
 func (s *Service) Logout(ctx context.Context, accountID uint) error {
-	return s.repo.ClearTokens(ctx, accountID)
+	accountInfo, err := s.FindByID(ctx, accountID)
+	if err != nil {
+		return err
+	}
+	if err := s.repo.ClearTokens(ctx, accountID); err != nil {
+		return err
+	}
+	if s.cache != nil {
+		cacheCtx, cancel := context.WithTimeout(ctx, 50*time.Millisecond)
+		defer cancel()
+		if err := s.cache.Del(cacheCtx, s.cache.Key("account:%d", accountID)); err != nil {
+			log.Printf("failed to delete account token cache: %v", err)
+		}
+		if err := s.cache.Del(cacheCtx, s.cache.Key("account:%d:refresh", accountID)); err != nil {
+			log.Printf("failed to delete refresh token cache: %v", err)
+		}
+		if accountInfo.RefreshToken != "" {
+			if err := s.cache.Del(cacheCtx, s.cache.Key("refresh:%s", accountInfo.RefreshToken)); err != nil {
+				log.Printf("failed to delete refresh lookup cache: %v", err)
+			}
+		}
+	}
+	return nil
 }
 
 func (s *Service) RefreshAccessToken(ctx context.Context, refreshToken string) (*LoginResult, error) {
@@ -143,6 +177,7 @@ func (s *Service) RefreshAccessToken(ctx context.Context, refreshToken string) (
 	if err := s.repo.UpdateToken(ctx, account.ID, token); err != nil {
 		return nil, err
 	}
+	s.cacheToken(ctx, account.ID, token)
 	account.Token = token
 	return &LoginResult{Account: account, Token: token, RefreshToken: account.RefreshToken}, nil
 }
@@ -159,4 +194,30 @@ func (s *Service) UpdateProfile(ctx context.Context, accountID uint, avatarURL s
 		return ErrInvalidInput
 	}
 	return s.repo.UpdateFields(ctx, accountID, updates)
+}
+
+func (s *Service) cacheToken(ctx context.Context, accountID uint, token string) {
+	if s.cache == nil {
+		return
+	}
+	cacheCtx, cancel := context.WithTimeout(ctx, 50*time.Millisecond)
+	defer cancel()
+	if err := s.cache.SetBytes(cacheCtx, s.cache.Key("account:%d", accountID), []byte(token), 24*time.Hour); err != nil {
+		log.Printf("failed to set account token cache: %v", err)
+	}
+}
+
+func (s *Service) cacheRefreshToken(ctx context.Context, accountID uint, refreshToken string) {
+	if s.cache == nil {
+		return
+	}
+	cacheCtx, cancel := context.WithTimeout(ctx, 50*time.Millisecond)
+	defer cancel()
+	if err := s.cache.SetBytes(cacheCtx, s.cache.Key("account:%d:refresh", accountID), []byte(refreshToken), 7*24*time.Hour); err != nil {
+		log.Printf("failed to set account refresh cache: %v", err)
+	}
+	accountIDBytes := []byte(strconv.FormatUint(uint64(accountID), 10))
+	if err := s.cache.SetBytes(cacheCtx, s.cache.Key("refresh:%s", refreshToken), accountIDBytes, 7*24*time.Hour); err != nil {
+		log.Printf("failed to set refresh lookup cache: %v", err)
+	}
 }

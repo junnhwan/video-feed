@@ -1,13 +1,16 @@
 package main
 
 import (
+	"context"
 	"log"
 	"strconv"
+	"time"
 
 	"video-feed/internal/account"
 	"video-feed/internal/config"
 	"video-feed/internal/db"
 	apphttp "video-feed/internal/http"
+	rediscache "video-feed/internal/middleware/redis"
 	"video-feed/internal/video"
 )
 
@@ -21,8 +24,24 @@ func main() {
 		log.Fatalf("auto migrate: %v", err)
 	}
 
-	router := apphttp.NewRouter(database)
+	cache := rediscache.NewFromConfig(cfg.Redis)
+	pingCtx, cancel := contextWithTimeout()
+	if err := cache.Ping(pingCtx); err != nil {
+		log.Printf("redis unavailable, cache disabled: %v", err)
+		_ = cache.Close()
+		cache = nil
+	}
+	cancel()
+	if cache != nil {
+		defer cache.Close()
+	}
+
+	router := apphttp.NewRouter(database, cache)
 	if err := router.Run(":" + strconv.Itoa(cfg.Server.Port)); err != nil {
 		log.Fatalf("run server: %v", err)
 	}
+}
+
+func contextWithTimeout() (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.Background(), 300*time.Millisecond)
 }

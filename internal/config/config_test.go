@@ -14,4 +14,7 @@ func TestDefaultConfigUsesLocalServerAndMySQL(t *testing.T) {
 	if cfg.Database.DSN == "" {
 		t.Fatal("expected non-empty database dsn")
 	}
+	if cfg.Redis.Port != 6379 {
+		t.Fatalf("expected redis port 6379, got %d", cfg.Redis.Port)
+	}
 }

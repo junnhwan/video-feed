@@ -3,6 +3,7 @@ package config
 type Config struct {
 	Server   ServerConfig
 	Database DatabaseConfig
+	Redis    RedisConfig
 }
 
 type ServerConfig struct {
@@ -14,6 +15,13 @@ type DatabaseConfig struct {
 	DSN    string
 }
 
+type RedisConfig struct {
+	Host     string
+	Port     int
+	Password string
+	DB       int
+}
+
 func Default() Config {
 	return Config{
 		Server: ServerConfig{
@@ -22,6 +30,12 @@ func Default() Config {
 		Database: DatabaseConfig{
 			Driver: "mysql",
 			DSN:    "root:123456@tcp(127.0.0.1:3306)/video_feed?charset=utf8mb4&parseTime=True&loc=Local",
+		},
+		Redis: RedisConfig{
+			Host:     "127.0.0.1",
+			Port:     6379,
+			Password: "",
+			DB:       0,
 		},
 	}
 }
