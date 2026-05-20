@@ -1,8 +1,8 @@
 .backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.55);
-  backdrop-filter: blur(10px);
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(8px);
   z-index: 120;
   display: grid;
   justify-items: end;
@@ -11,10 +11,12 @@
 .drawer {
   width: min(420px, calc(100vw - 18px));
   height: 100vh;
-  background: rgba(0, 0, 0, 0.65);
-  border-left: 1px solid rgba(255, 255, 255, 0.12);
+  background: var(--bg-primary);
+  border-left: 1px solid var(--border);
+  box-shadow: var(--shadow-lg);
   display: grid;
   grid-template-rows: auto 1fr auto;
+  animation: slideInRight var(--duration-normal) var(--ease-out);
 }
 
 .head {
@@ -22,12 +24,14 @@
   align-items: center;
   justify-content: space-between;
   padding: 14px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-primary);
 }
 
 .title {
   font-weight: 800;
   font-size: 14px;
+  color: var(--text-primary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -36,13 +40,27 @@
 .closeBtn {
   width: 34px;
   height: 34px;
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(255, 255, 255, 0.06);
-  color: rgba(255, 255, 255, 0.9);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
   font-size: 20px;
   line-height: 1;
   cursor: pointer;
+  transition:
+    background var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+}
+
+.closeBtn:hover {
+  background: var(--bg-tertiary);
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+}
+
+.closeBtn:active {
+  background: var(--bg-active);
 }
 
 .body {
@@ -51,35 +69,51 @@
   display: grid;
   gap: 10px;
   align-content: start;
+  background: var(--bg-secondary);
 }
 
 .hint {
-  color: rgba(255, 255, 255, 0.78);
+  color: var(--text-secondary);
   padding: 12px 0;
   text-align: center;
 }
 
 .bad {
-  color: rgba(254, 44, 85, 0.92);
+  color: var(--accent);
 }
 
 .foot {
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  border-top: 1px solid var(--border);
   padding: 12px 14px;
+  background: var(--bg-primary);
 }
 
 .textarea {
   width: 100%;
   min-height: 82px;
   resize: none;
-  border-radius: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(255, 255, 255, 0.06);
-  color: rgba(255, 255, 255, 0.9);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-strong);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
   padding: 10px 12px;
   outline: none;
   font-size: 14px;
   font-family: inherit;
+  transition:
+    border-color var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-fast) var(--ease-out),
+    background var(--duration-fast) var(--ease-out);
+}
+
+.textarea::placeholder {
+  color: var(--text-tertiary);
+}
+
+.textarea:focus {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px var(--blue-soft);
+  background: var(--bg-primary);
 }
 
 .footActions {
@@ -89,11 +123,32 @@
 }
 
 .comment {
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--bg-primary);
+  border-radius: var(--radius-md);
   padding: 10px;
+  box-shadow: var(--shadow-xs);
+  animation: scaleIn var(--duration-normal) var(--ease-spring) both;
+  transition:
+    background var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-fast) var(--ease-out);
 }
+
+.comment:hover {
+  background: var(--bg-secondary);
+  box-shadow: var(--shadow-sm);
+}
+
+.comment:nth-child(1) { animation-delay: 0ms; }
+.comment:nth-child(2) { animation-delay: 40ms; }
+.comment:nth-child(3) { animation-delay: 80ms; }
+.comment:nth-child(4) { animation-delay: 120ms; }
+.comment:nth-child(5) { animation-delay: 160ms; }
+.comment:nth-child(6) { animation-delay: 200ms; }
+.comment:nth-child(7) { animation-delay: 240ms; }
+.comment:nth-child(8) { animation-delay: 280ms; }
+.comment:nth-child(9) { animation-delay: 320ms; }
+.comment:nth-child(10) { animation-delay: 360ms; }
 
 .commentTop {
   display: grid;
@@ -103,11 +158,12 @@
 .commentUser {
   font-weight: 700;
   font-size: 13px;
+  color: var(--text-primary);
 }
 
 .commentMeta {
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.55);
+  color: var(--text-tertiary);
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
@@ -115,7 +171,7 @@
   margin-top: 8px;
   font-size: 13px;
   line-height: 1.35;
-  color: rgba(255, 255, 255, 0.86);
+  color: var(--text-primary);
   white-space: pre-wrap;
   word-break: break-word;
 }
@@ -131,22 +187,52 @@
   align-items: center;
   gap: 8px;
   padding: 7px 10px;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(0, 0, 0, 0.28);
-  color: rgba(255, 255, 255, 0.86);
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
   font-size: 12px;
   cursor: pointer;
+  transition:
+    background var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+}
+
+.chip:hover {
+  background: var(--bg-tertiary);
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+}
+
+.chip:active {
+  background: var(--bg-active);
 }
 
 .primary {
-  border-color: rgba(254, 44, 85, 0.45);
-  background: rgba(254, 44, 85, 0.14);
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+
+.primary:hover {
+  background: #e5274d;
+  border-color: #e5274d;
+}
+
+.primary:active {
+  background: #cc2244;
 }
 
 .danger {
-  border-color: rgba(254, 44, 85, 0.55);
-  background: rgba(254, 44, 85, 0.12);
+  border-color: rgba(254, 44, 85, 0.3);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.danger:hover {
+  background: rgba(254, 44, 85, 0.14);
+  border-color: rgba(254, 44, 85, 0.4);
 }
 
 @media (max-width: 900px) {
@@ -159,8 +245,9 @@
     width: calc(100vw - 16px);
     height: min(72vh, 560px);
     border-left: none;
-    border-top: 1px solid rgba(255, 255, 255, 0.12);
+    border-top: 1px solid var(--border);
     border-radius: 18px 18px 0 0;
     overflow: hidden;
+    animation: slideInUp var(--duration-normal) var(--ease-out);
   }
 }

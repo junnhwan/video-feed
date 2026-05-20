@@ -4,29 +4,34 @@
   grid-template-columns: 232px 1fr;
 }
 
+/* ── Sidebar ─────────────────────────────────── */
+
 .aside {
-  border-right: 1px solid var(--border-color);
-  background: rgba(12, 16, 23, 0.78);
-  backdrop-filter: blur(18px);
+  border-right: 1px solid var(--border);
+  background: var(--bg-primary);
+  box-shadow: var(--shadow-sm);
   padding: 14px 12px;
   display: flex;
   flex-direction: column;
   gap: 14px;
+  z-index: 10;
 }
 
 .logo {
   font-weight: 900;
   font-size: 18px;
   padding: 10px;
-  border-radius: 8px;
-  background: rgba(43, 161, 255, 0.1);
-  border: 1px solid rgba(43, 161, 255, 0.22);
+  border-radius: var(--radius-sm);
   text-align: center;
+  color: var(--text-primary);
+  letter-spacing: 0.3px;
 }
 
 .logo:hover {
-  color: #dceeff;
+  background: var(--bg-hover);
 }
+
+/* ── Navigation ──────────────────────────────── */
 
 .nav {
   display: grid;
@@ -36,21 +41,29 @@
 .navLink {
   display: block;
   padding: 10px 14px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   font-size: 14px;
+  font-weight: 500;
   color: var(--text-secondary);
-  transition: background 120ms, color 120ms;
+  transition:
+    background var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
 }
 
 .navLink:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--bg-hover);
   color: var(--text-primary);
 }
 
 .navLink.active {
-  background: rgba(43, 161, 255, 0.12);
-  color: var(--text-primary);
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-left: 3px solid var(--accent);
+  padding-left: 11px;
+  font-weight: 600;
 }
+
+/* ── Sidebar Footer ──────────────────────────── */
 
 .asideFoot {
   margin-top: auto;
@@ -76,14 +89,15 @@
   width: 8px;
   height: 8px;
   border-radius: 50%;
+  box-shadow: 0 0 0 2px var(--bg-primary);
 }
 
 .ok {
-  background: #22c55e;
+  background: var(--green);
 }
 
 .bad {
-  background: #ff5d73;
+  background: var(--accent);
 }
 
 .userName {
@@ -92,39 +106,55 @@
   white-space: nowrap;
 }
 
+/* ── Buttons ─────────────────────────────────── */
+
 .btn {
-  border: 1px solid var(--border-color);
-  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border);
+  background: var(--bg-secondary);
   color: var(--text-primary);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   padding: 10px 14px;
   font-size: 14px;
-  transition: background 120ms;
+  font-weight: 500;
+  transition:
+    background var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-fast) var(--ease-out);
 }
 
 .btn:hover {
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--bg-tertiary);
+  border-color: var(--border-strong);
 }
 
 .primary {
-  border-color: rgba(43, 161, 255, 0.55);
-  background: rgba(43, 161, 255, 0.18);
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #ffffff;
+  font-weight: 600;
 }
 
 .primary:hover {
-  background: rgba(43, 161, 255, 0.26);
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+  box-shadow: 0 2px 12px rgba(254, 44, 85, 0.25);
 }
+
+/* ── Main Content Area ───────────────────────── */
 
 .main {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  background: var(--bg-secondary);
 }
 
 .content {
   flex: 1;
   overflow-y: auto;
 }
+
+/* ── Mobile Navigation ───────────────────────── */
 
 .mobileNav {
   display: none;
@@ -141,22 +171,31 @@
 
   .mobileNav {
     display: flex;
-    border-bottom: 1px solid var(--border-color);
-    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-primary);
     overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .mobileNav::-webkit-scrollbar {
+    display: none;
   }
 
   .mobileLink {
     padding: 12px 16px;
     font-size: 13px;
+    font-weight: 500;
     white-space: nowrap;
     color: var(--text-secondary);
     border-bottom: 2px solid transparent;
-    transition: color 120ms, border-color 120ms;
+    transition:
+      color var(--duration-fast) var(--ease-out),
+      border-color var(--duration-fast) var(--ease-out);
   }
 
   .mobileLink.active {
-    color: var(--text-primary);
-    border-bottom-color: rgba(43, 161, 255, 0.8);
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+    font-weight: 600;
   }
 }

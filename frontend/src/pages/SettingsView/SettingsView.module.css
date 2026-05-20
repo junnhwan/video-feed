@@ -5,14 +5,14 @@
 }
 
 .card {
-  background: rgba(22, 27, 37, 0.82);
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
   padding: 32px 28px;
-  backdrop-filter: blur(14px);
-  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.28);
+  box-shadow: var(--shadow-lg);
   display: grid;
   gap: 24px;
+  animation: fadeUp var(--duration-normal) var(--ease-out) both;
 }
 
 .title {
@@ -20,6 +20,7 @@
   font-weight: 800;
   text-align: center;
   margin: 0;
+  color: var(--text-primary);
 }
 
 /* ─── Profile header ────────────────────────────── */
@@ -44,7 +45,7 @@
   height: 72px;
   border-radius: 50%;
   object-fit: cover;
-  border: 2px solid var(--border-color);
+  border: 2px solid var(--border);
 }
 
 .avatarFallback {
@@ -54,23 +55,25 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #fff;
+  color: #ffffff;
   font-weight: 700;
   font-size: 30px;
-  border: 2px solid var(--border-color);
+  background: var(--accent);
+  border: 2px solid var(--border);
 }
 
 .avatarBtn {
   font-size: 12px;
-  color: rgba(43, 161, 255, 0.9);
+  color: var(--blue);
   background: none;
   border: none;
   cursor: pointer;
   padding: 0;
+  transition: color var(--duration-fast) var(--ease-out);
 }
 
 .avatarBtn:hover {
-  color: #dceeff;
+  color: var(--accent);
 }
 
 .avatarBtn:disabled {
@@ -109,56 +112,75 @@
 
 .input {
   flex: 1;
-  background: rgba(255, 255, 255, 0.055);
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
   color: var(--text-primary);
   padding: 11px 12px;
   font-size: 14px;
   outline: none;
-  transition: border-color 140ms, box-shadow 140ms;
+  transition: border-color var(--duration-fast) var(--ease-out),
+              box-shadow var(--duration-fast) var(--ease-out),
+              background var(--duration-fast) var(--ease-out);
+}
+
+.input::placeholder {
+  color: var(--text-tertiary);
 }
 
 .input:focus {
-  border-color: rgba(43, 161, 255, 0.72);
-  box-shadow: 0 0 0 3px rgba(43, 161, 255, 0.18);
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px var(--blue-soft);
+  background: var(--bg-primary);
 }
 
 .textarea {
   width: 100%;
-  background: rgba(255, 255, 255, 0.055);
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
   color: var(--text-primary);
   padding: 11px 12px;
   font-size: 14px;
   outline: none;
   resize: vertical;
   font-family: inherit;
-  transition: border-color 140ms, box-shadow 140ms;
+  transition: border-color var(--duration-fast) var(--ease-out),
+              box-shadow var(--duration-fast) var(--ease-out),
+              background var(--duration-fast) var(--ease-out);
+}
+
+.textarea::placeholder {
+  color: var(--text-tertiary);
 }
 
 .textarea:focus {
-  border-color: rgba(43, 161, 255, 0.72);
-  box-shadow: 0 0 0 3px rgba(43, 161, 255, 0.18);
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px var(--blue-soft);
+  background: var(--bg-primary);
 }
 
 /* ─── Buttons ────────────────────────────────────── */
 
 .btn {
-  border: 1px solid var(--border-color);
-  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border);
+  background: var(--bg-secondary);
   color: var(--text-primary);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: 11px 14px;
   font-size: 14px;
   cursor: pointer;
-  transition: background 120ms;
+  transition: background var(--duration-fast) var(--ease-out),
+              box-shadow var(--duration-fast) var(--ease-out);
   justify-self: start;
 }
 
 .btn:hover {
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--bg-hover);
+}
+
+.btn:active {
+  background: var(--bg-active);
 }
 
 .btn:disabled {
@@ -167,34 +189,42 @@
 }
 
 .primary {
-  border-color: rgba(43, 161, 255, 0.55);
-  background: rgba(43, 161, 255, 0.18);
+  border: none;
+  background: var(--accent);
+  color: #ffffff;
+  font-weight: 600;
 }
 
-.primary:hover {
-  background: rgba(43, 161, 255, 0.26);
+.primary:hover:not(:disabled) {
+  background: var(--accent-hover);
 }
 
 .danger {
-  border-color: rgba(255, 70, 70, 0.45);
-  background: rgba(255, 70, 70, 0.12);
-  color: #ff6b6b;
+  border: 1.5px solid var(--accent);
+  background: var(--bg-primary);
+  color: var(--accent);
   justify-self: stretch;
   text-align: center;
+  font-weight: 600;
+  transition: background var(--duration-fast) var(--ease-out),
+              color var(--duration-fast) var(--ease-out);
 }
 
 .danger:hover {
-  background: rgba(255, 70, 70, 0.2);
+  background: var(--accent);
+  color: #ffffff;
 }
 
 /* ─── Link ────────────────────────────────────────── */
 
 .link {
-  color: rgba(43, 161, 255, 0.9);
+  color: var(--blue);
   font-size: 14px;
   text-decoration: none;
+  font-weight: 600;
+  transition: color var(--duration-fast) var(--ease-out);
 }
 
 .link:hover {
-  color: #dceeff;
+  color: var(--accent);
 }

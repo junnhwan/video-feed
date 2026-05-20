@@ -6,4 +6,5 @@
   color: #fff;
   flex-shrink: 0;
   user-select: none;
+  box-shadow: var(--shadow-xs);
 }

@@ -4,27 +4,15 @@
   right: 0;
   width: min(360px, calc(100vw - 24px));
   max-height: min(480px, calc(100vh - 80px));
-  background: rgba(12, 16, 23, 0.92);
-  backdrop-filter: blur(18px);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 14px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
   overflow: hidden;
   display: grid;
   grid-template-rows: auto 1fr;
   z-index: 150;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
-  animation: slideDown 160ms ease-out;
-}
-
-@keyframes slideDown {
-  from {
-    opacity: 0;
-    transform: translateY(-6px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  box-shadow: var(--shadow-xl);
+  animation: slideInDown var(--duration-normal) var(--ease-out);
 }
 
 .head {
@@ -32,27 +20,34 @@
   align-items: center;
   justify-content: space-between;
   padding: 12px 14px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid var(--border);
 }
 
 .title {
   font-weight: 800;
   font-size: 14px;
+  color: var(--text-primary);
 }
 
 .markAll {
   border: none;
   background: none;
-  color: rgba(43, 161, 255, 0.9);
+  color: var(--blue);
   font-size: 12px;
   cursor: pointer;
   padding: 4px 8px;
-  border-radius: 6px;
-  transition: background 120ms;
+  border-radius: var(--radius-xs);
+  transition:
+    background var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
 }
 
 .markAll:hover {
-  background: rgba(43, 161, 255, 0.12);
+  background: var(--blue-soft);
+}
+
+.markAll:active {
+  background: rgba(43, 161, 255, 0.14);
 }
 
 .body {
@@ -67,36 +62,44 @@
   align-items: start;
   padding: 10px 14px;
   cursor: pointer;
-  transition: background 100ms;
+  transition:
+    background var(--duration-fast) var(--ease-out);
 }
 
 .item:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--bg-hover);
 }
 
 .itemUnread {
-  background: rgba(43, 161, 255, 0.06);
+  background: var(--blue-soft);
+}
+
+.itemUnread:hover {
+  background: rgba(43, 161, 255, 0.12);
 }
 
 .icon {
   width: 32px;
   height: 32px;
-  border-radius: 10px;
+  border-radius: var(--radius-sm);
   display: grid;
   place-items: center;
   font-size: 15px;
 }
 
 .iconLike {
-  background: rgba(254, 44, 85, 0.14);
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 
 .iconComment {
-  background: rgba(43, 161, 255, 0.14);
+  background: var(--blue-soft);
+  color: var(--blue);
 }
 
 .iconFollow {
-  background: rgba(34, 197, 94, 0.14);
+  background: var(--green-soft);
+  color: var(--green);
 }
 
 .content {
@@ -106,13 +109,13 @@
 .text {
   font-size: 13px;
   line-height: 1.4;
-  color: rgba(255, 255, 255, 0.86);
+  color: var(--text-primary);
   word-break: break-word;
 }
 
 .time {
   font-size: 11px;
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--text-tertiary);
   margin-top: 3px;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
@@ -121,7 +124,7 @@
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: rgba(254, 44, 85, 0.9);
+  background: var(--accent);
   margin-top: 6px;
   flex-shrink: 0;
 }
@@ -129,6 +132,6 @@
 .empty {
   padding: 36px 14px;
   text-align: center;
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--text-tertiary);
   font-size: 13px;
 }
