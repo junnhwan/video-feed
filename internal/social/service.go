@@ -16,10 +16,20 @@ var (
 type Service struct {
 	repo        *Repository
 	accountRepo *account.Repository
+	publisher   SocialEventPublisher
+}
+
+type SocialEventPublisher interface {
+	Follow(ctx context.Context, followerID uint, vloggerID uint) error
+	Unfollow(ctx context.Context, followerID uint, vloggerID uint) error
 }
 
 func NewService(repo *Repository, accountRepo *account.Repository) *Service {
 	return &Service{repo: repo, accountRepo: accountRepo}
+}
+
+func (s *Service) SetPublisher(publisher SocialEventPublisher) {
+	s.publisher = publisher
 }
 
 func (s *Service) Follow(ctx context.Context, followerID uint, vloggerID uint) error {
@@ -36,6 +46,11 @@ func (s *Service) Follow(ctx context.Context, followerID uint, vloggerID uint) e
 	if isFollowed {
 		return ErrAlreadyFollowed
 	}
+	if s.publisher != nil {
+		if err := s.publisher.Follow(ctx, followerID, vloggerID); err == nil {
+			return nil
+		}
+	}
 	return s.repo.Follow(ctx, followerID, vloggerID)
 }
 
@@ -49,6 +64,11 @@ func (s *Service) Unfollow(ctx context.Context, followerID uint, vloggerID uint)
 	}
 	if !isFollowed {
 		return ErrNotFollowed
+	}
+	if s.publisher != nil {
+		if err := s.publisher.Unfollow(ctx, followerID, vloggerID); err == nil {
+			return nil
+		}
 	}
 	return s.repo.Unfollow(ctx, followerID, vloggerID)
 }

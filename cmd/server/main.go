@@ -10,6 +10,7 @@ import (
 	"video-feed/internal/config"
 	"video-feed/internal/db"
 	apphttp "video-feed/internal/http"
+	"video-feed/internal/middleware/rabbitmq"
 	rediscache "video-feed/internal/middleware/redis"
 	"video-feed/internal/social"
 	"video-feed/internal/video"
@@ -37,7 +38,20 @@ func main() {
 		defer cache.Close()
 	}
 
-	router := apphttp.NewRouter(database, cache)
+	var publishers *rabbitmq.Publishers
+	broker, err := rabbitmq.NewRabbitMQ(cfg.RabbitMQ)
+	if err != nil {
+		log.Printf("rabbitmq unavailable, async workers disabled: %v", err)
+	} else {
+		defer broker.Close()
+		publishers, err = rabbitmq.NewPublishers(broker)
+		if err != nil {
+			log.Printf("rabbitmq publisher init failed, async workers disabled: %v", err)
+			publishers = nil
+		}
+	}
+
+	router := apphttp.NewRouterWithPublishers(database, cache, publishers)
 	if err := router.Run(":" + strconv.Itoa(cfg.Server.Port)); err != nil {
 		log.Fatalf("run server: %v", err)
 	}

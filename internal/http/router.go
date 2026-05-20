@@ -6,6 +6,7 @@ import (
 	"video-feed/internal/account"
 	"video-feed/internal/feed"
 	authjwt "video-feed/internal/middleware/jwt"
+	"video-feed/internal/middleware/rabbitmq"
 	"video-feed/internal/middleware/ratelimit"
 	rediscache "video-feed/internal/middleware/redis"
 	"video-feed/internal/social"
@@ -20,7 +21,10 @@ func NewRouter(database *gorm.DB, cache ...*rediscache.Client) *gin.Engine {
 	if len(cache) > 0 {
 		tokenCache = cache[0]
 	}
+	return NewRouterWithPublishers(database, tokenCache, nil)
+}
 
+func NewRouterWithPublishers(database *gorm.DB, tokenCache *rediscache.Client, publishers *rabbitmq.Publishers) *gin.Engine {
 	router := gin.Default()
 	router.Static("/static", "./.run/uploads")
 	router.GET("/health", func(c *gin.Context) {
@@ -68,6 +72,9 @@ func NewRouter(database *gorm.DB, cache ...*rediscache.Client) *gin.Engine {
 
 		likeRepo := video.NewLikeRepository(database)
 		likeService := video.NewLikeService(likeRepo, videoRepo, tokenCache)
+		if publishers != nil {
+			likeService.SetPublishers(publishers.Like, publishers.Popularity)
+		}
 		likeHandler := video.NewLikeHandler(likeService)
 		likeGroup := router.Group("/like")
 		likeGroup.Use(authjwt.JWTAuth(accountRepo, tokenCache))
@@ -80,6 +87,9 @@ func NewRouter(database *gorm.DB, cache ...*rediscache.Client) *gin.Engine {
 
 		commentRepo := video.NewCommentRepository(database)
 		commentService := video.NewCommentService(commentRepo, videoRepo, tokenCache)
+		if publishers != nil {
+			commentService.SetPublishers(publishers.Comment, publishers.Popularity)
+		}
 		commentHandler := video.NewCommentHandler(commentService, accountService)
 		commentGroup := router.Group("/comment")
 		{
@@ -94,6 +104,9 @@ func NewRouter(database *gorm.DB, cache ...*rediscache.Client) *gin.Engine {
 
 		socialRepo := social.NewRepository(database)
 		socialService := social.NewService(socialRepo, accountRepo)
+		if publishers != nil {
+			socialService.SetPublisher(publishers.Social)
+		}
 		socialHandler := social.NewHandler(socialService)
 		socialGroup := router.Group("/social")
 		socialGroup.Use(authjwt.JWTAuth(accountRepo, tokenCache))

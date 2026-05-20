@@ -6,6 +6,7 @@ import (
 	"video-feed/internal/account"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type Repository struct {
@@ -18,6 +19,12 @@ func NewRepository(db *gorm.DB) *Repository {
 
 func (r *Repository) Follow(ctx context.Context, followerID uint, vloggerID uint) error {
 	return r.db.WithContext(ctx).Create(&Social{FollowerID: followerID, VloggerID: vloggerID}).Error
+}
+
+func (r *Repository) FollowIgnoreDuplicate(ctx context.Context, followerID uint, vloggerID uint) error {
+	return r.db.WithContext(ctx).
+		Clauses(clause.OnConflict{DoNothing: true}).
+		Create(&Social{FollowerID: followerID, VloggerID: vloggerID}).Error
 }
 
 func (r *Repository) Unfollow(ctx context.Context, followerID uint, vloggerID uint) error {

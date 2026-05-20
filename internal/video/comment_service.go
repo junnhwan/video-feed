@@ -16,13 +16,25 @@ var (
 )
 
 type CommentService struct {
-	repo      *CommentRepository
-	videoRepo *Repository
-	cache     *rediscache.Client
+	repo             *CommentRepository
+	videoRepo        *Repository
+	cache            *rediscache.Client
+	commentPublisher CommentEventPublisher
+	popPublisher     PopularityEventPublisher
+}
+
+type CommentEventPublisher interface {
+	Publish(ctx context.Context, username string, videoID uint, authorID uint, content string) error
+	Delete(ctx context.Context, commentID uint) error
 }
 
 func NewCommentService(repo *CommentRepository, videoRepo *Repository, cache *rediscache.Client) *CommentService {
 	return &CommentService{repo: repo, videoRepo: videoRepo, cache: cache}
+}
+
+func (s *CommentService) SetPublishers(commentPublisher CommentEventPublisher, popularityPublisher PopularityEventPublisher) {
+	s.commentPublisher = commentPublisher
+	s.popPublisher = popularityPublisher
 }
 
 func (s *CommentService) Publish(ctx context.Context, input PublishCommentInput) (*Comment, error) {
@@ -44,17 +56,30 @@ func (s *CommentService) Publish(ctx context.Context, input PublishCommentInput)
 		return nil, ErrVideoNotFound
 	}
 
-	err := s.repo.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Create(comment).Error; err != nil {
-			return err
+	mysqlEnqueued := false
+	redisEnqueued := false
+	if s.commentPublisher != nil {
+		if err := s.commentPublisher.Publish(ctx, comment.Username, comment.VideoID, comment.AuthorID, comment.Content); err == nil {
+			mysqlEnqueued = true
 		}
-		return tx.Model(&Video{}).Where("id = ?", comment.VideoID).
-			UpdateColumn("popularity", gorm.Expr("popularity + 1")).Error
-	})
-	if err != nil {
-		return nil, err
 	}
-	UpdatePopularityCache(ctx, s.cache, comment.VideoID, 1)
+	if s.popPublisher != nil {
+		if err := s.popPublisher.Update(ctx, comment.VideoID, 1); err == nil {
+			redisEnqueued = true
+		}
+	}
+	if mysqlEnqueued && redisEnqueued {
+		return comment, nil
+	}
+
+	if !mysqlEnqueued {
+		if err := s.applyPublish(ctx, comment); err != nil {
+			return nil, err
+		}
+	}
+	if !redisEnqueued {
+		UpdatePopularityCache(ctx, s.cache, comment.VideoID, 1)
+	}
 	return comment, nil
 }
 
@@ -69,17 +94,36 @@ func (s *CommentService) Delete(ctx context.Context, commentID uint, accountID u
 	if comment.AuthorID != accountID {
 		return ErrUnauthorized
 	}
-	if err := s.repo.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	if s.commentPublisher != nil {
+		if err := s.commentPublisher.Delete(ctx, commentID); err == nil {
+			return nil
+		}
+	}
+	if err := s.applyDelete(ctx, comment); err != nil {
+		return err
+	}
+	UpdatePopularityCache(ctx, s.cache, comment.VideoID, -1)
+	return nil
+}
+
+func (s *CommentService) applyPublish(ctx context.Context, comment *Comment) error {
+	return s.repo.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(comment).Error; err != nil {
+			return err
+		}
+		return tx.Model(&Video{}).Where("id = ?", comment.VideoID).
+			UpdateColumn("popularity", gorm.Expr("popularity + 1")).Error
+	})
+}
+
+func (s *CommentService) applyDelete(ctx context.Context, comment *Comment) error {
+	return s.repo.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Delete(comment).Error; err != nil {
 			return err
 		}
 		return tx.Model(&Video{}).Where("id = ?", comment.VideoID).
 			UpdateColumn("popularity", gorm.Expr("CASE WHEN popularity > 0 THEN popularity - 1 ELSE 0 END")).Error
-	}); err != nil {
-		return err
-	}
-	UpdatePopularityCache(ctx, s.cache, comment.VideoID, -1)
-	return nil
+	})
 }
 
 func (s *CommentService) GetAll(ctx context.Context, videoID uint) ([]Comment, error) {

@@ -4,6 +4,7 @@ type Config struct {
 	Server   ServerConfig
 	Database DatabaseConfig
 	Redis    RedisConfig
+	RabbitMQ RabbitMQConfig
 }
 
 type ServerConfig struct {
@@ -22,6 +23,13 @@ type RedisConfig struct {
 	DB       int
 }
 
+type RabbitMQConfig struct {
+	Host     string
+	Port     int
+	Username string
+	Password string
+}
+
 func Default() Config {
 	return Config{
 		Server: ServerConfig{
@@ -36,6 +44,12 @@ func Default() Config {
 			Port:     6379,
 			Password: "",
 			DB:       0,
+		},
+		RabbitMQ: RabbitMQConfig{
+			Host:     "127.0.0.1",
+			Port:     5672,
+			Username: "admin",
+			Password: "password123",
 		},
 	}
 }

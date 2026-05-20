@@ -16,13 +16,29 @@ var (
 )
 
 type LikeService struct {
-	repo      *LikeRepository
-	videoRepo *Repository
-	cache     *rediscache.Client
+	repo          *LikeRepository
+	videoRepo     *Repository
+	cache         *rediscache.Client
+	likePublisher LikeEventPublisher
+	popPublisher  PopularityEventPublisher
+}
+
+type LikeEventPublisher interface {
+	Like(ctx context.Context, userID uint, videoID uint) error
+	Unlike(ctx context.Context, userID uint, videoID uint) error
+}
+
+type PopularityEventPublisher interface {
+	Update(ctx context.Context, videoID uint, change int64) error
 }
 
 func NewLikeService(repo *LikeRepository, videoRepo *Repository, cache *rediscache.Client) *LikeService {
 	return &LikeService{repo: repo, videoRepo: videoRepo, cache: cache}
+}
+
+func (s *LikeService) SetPublishers(likePublisher LikeEventPublisher, popularityPublisher PopularityEventPublisher) {
+	s.likePublisher = likePublisher
+	s.popPublisher = popularityPublisher
 }
 
 func (s *LikeService) Like(ctx context.Context, videoID uint, accountID uint) error {
@@ -42,20 +58,30 @@ func (s *LikeService) Like(ctx context.Context, videoID uint, accountID uint) er
 		return ErrAlreadyLiked
 	}
 
-	if err := s.repo.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Create(&Like{VideoID: videoID, AccountID: accountID}).Error; err != nil {
-			return err
+	mysqlEnqueued := false
+	redisEnqueued := false
+	if s.likePublisher != nil {
+		if err := s.likePublisher.Like(ctx, accountID, videoID); err == nil {
+			mysqlEnqueued = true
 		}
-		if err := tx.Model(&Video{}).Where("id = ?", videoID).
-			UpdateColumn("likes_count", gorm.Expr("likes_count + 1")).Error; err != nil {
-			return err
-		}
-		return tx.Model(&Video{}).Where("id = ?", videoID).
-			UpdateColumn("popularity", gorm.Expr("popularity + 1")).Error
-	}); err != nil {
-		return err
 	}
-	UpdatePopularityCache(ctx, s.cache, videoID, 1)
+	if s.popPublisher != nil {
+		if err := s.popPublisher.Update(ctx, videoID, 1); err == nil {
+			redisEnqueued = true
+		}
+	}
+	if mysqlEnqueued && redisEnqueued {
+		return nil
+	}
+
+	if !mysqlEnqueued {
+		if err := s.applyLike(ctx, videoID, accountID); err != nil {
+			return err
+		}
+	}
+	if !redisEnqueued {
+		UpdatePopularityCache(ctx, s.cache, videoID, 1)
+	}
 	return nil
 }
 
@@ -76,6 +102,48 @@ func (s *LikeService) Unlike(ctx context.Context, videoID uint, accountID uint) 
 		return ErrNotLiked
 	}
 
+	mysqlEnqueued := false
+	redisEnqueued := false
+	if s.likePublisher != nil {
+		if err := s.likePublisher.Unlike(ctx, accountID, videoID); err == nil {
+			mysqlEnqueued = true
+		}
+	}
+	if s.popPublisher != nil {
+		if err := s.popPublisher.Update(ctx, videoID, -1); err == nil {
+			redisEnqueued = true
+		}
+	}
+	if mysqlEnqueued && redisEnqueued {
+		return nil
+	}
+
+	if !mysqlEnqueued {
+		if err := s.applyUnlike(ctx, videoID, accountID); err != nil {
+			return err
+		}
+	}
+	if !redisEnqueued {
+		UpdatePopularityCache(ctx, s.cache, videoID, -1)
+	}
+	return nil
+}
+
+func (s *LikeService) applyLike(ctx context.Context, videoID uint, accountID uint) error {
+	return s.repo.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&Like{VideoID: videoID, AccountID: accountID}).Error; err != nil {
+			return err
+		}
+		if err := tx.Model(&Video{}).Where("id = ?", videoID).
+			UpdateColumn("likes_count", gorm.Expr("likes_count + 1")).Error; err != nil {
+			return err
+		}
+		return tx.Model(&Video{}).Where("id = ?", videoID).
+			UpdateColumn("popularity", gorm.Expr("popularity + 1")).Error
+	})
+}
+
+func (s *LikeService) applyUnlike(ctx context.Context, videoID uint, accountID uint) error {
 	if err := s.repo.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		del := tx.Where("video_id = ? AND account_id = ?", videoID, accountID).Delete(&Like{})
 		if del.Error != nil {
@@ -93,7 +161,6 @@ func (s *LikeService) Unlike(ctx context.Context, videoID uint, accountID uint) 
 	}); err != nil {
 		return err
 	}
-	UpdatePopularityCache(ctx, s.cache, videoID, -1)
 	return nil
 }
 

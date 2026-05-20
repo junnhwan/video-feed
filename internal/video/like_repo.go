@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type LikeRepository struct {
@@ -23,6 +24,32 @@ func (r *LikeRepository) IsLiked(ctx context.Context, videoID uint, accountID ui
 		return false, err
 	}
 	return count > 0, nil
+}
+
+func (r *LikeRepository) LikeIgnoreDuplicate(ctx context.Context, like *Like) (bool, error) {
+	if like == nil || like.VideoID == 0 || like.AccountID == 0 {
+		return false, nil
+	}
+	res := r.db.WithContext(ctx).
+		Clauses(clause.OnConflict{DoNothing: true}).
+		Create(like)
+	if res.Error != nil {
+		return false, res.Error
+	}
+	return res.RowsAffected > 0, nil
+}
+
+func (r *LikeRepository) DeleteByVideoAndAccount(ctx context.Context, videoID uint, accountID uint) (bool, error) {
+	if videoID == 0 || accountID == 0 {
+		return false, nil
+	}
+	res := r.db.WithContext(ctx).
+		Where("video_id = ? AND account_id = ?", videoID, accountID).
+		Delete(&Like{})
+	if res.Error != nil {
+		return false, res.Error
+	}
+	return res.RowsAffected > 0, nil
 }
 
 func (r *LikeRepository) BatchGetLiked(ctx context.Context, videoIDs []uint, accountID uint) (map[uint]bool, error) {

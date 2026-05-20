@@ -53,3 +53,13 @@ func (r *Repository) IsExist(ctx context.Context, id uint) (bool, error) {
 	}
 	return count > 0, nil
 }
+
+func (r *Repository) ChangeLikesCount(ctx context.Context, id uint, change int64) error {
+	return r.db.WithContext(ctx).Model(&Video{}).Where("id = ?", id).
+		UpdateColumn("likes_count", gorm.Expr("CASE WHEN likes_count + ? > 0 THEN likes_count + ? ELSE 0 END", change, change)).Error
+}
+
+func (r *Repository) ChangePopularity(ctx context.Context, id uint, change int64) error {
+	return r.db.WithContext(ctx).Model(&Video{}).Where("id = ?", id).
+		UpdateColumn("popularity", gorm.Expr("CASE WHEN popularity + ? > 0 THEN popularity + ? ELSE 0 END", change, change)).Error
+}
