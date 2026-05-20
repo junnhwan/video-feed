@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"video-feed/internal/account"
+	"video-feed/internal/feed"
 	authjwt "video-feed/internal/middleware/jwt"
 	"video-feed/internal/middleware/ratelimit"
 	rediscache "video-feed/internal/middleware/redis"
@@ -58,6 +59,23 @@ func NewRouter(database *gorm.DB, cache ...*rediscache.Client) *gin.Engine {
 		protectedVideoGroup.Use(authjwt.JWTAuth(accountRepo, tokenCache))
 		{
 			protectedVideoGroup.POST("/publish", ratelimit.Limit(tokenCache, "video_publish", 30, time.Minute, ratelimit.KeyByAccount), videoHandler.Publish)
+		}
+
+		likeRepo := video.NewLikeRepository(database)
+		feedRepo := feed.NewRepository(database)
+		feedService := feed.NewService(feedRepo, likeRepo, tokenCache)
+		feedHandler := feed.NewHandler(feedService)
+		feedGroup := router.Group("/feed")
+		feedGroup.Use(authjwt.SoftJWTAuth(accountRepo, tokenCache))
+		{
+			feedGroup.POST("/listLatest", feedHandler.ListLatest)
+			feedGroup.POST("/listLikesCount", feedHandler.ListLikesCount)
+			feedGroup.POST("/listByPopularity", feedHandler.ListByPopularity)
+		}
+		protectedFeedGroup := feedGroup.Group("")
+		protectedFeedGroup.Use(authjwt.JWTAuth(accountRepo, tokenCache))
+		{
+			protectedFeedGroup.POST("/listByFollowing", feedHandler.ListByFollowing)
 		}
 	}
 	return router

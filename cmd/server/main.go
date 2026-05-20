@@ -11,6 +11,7 @@ import (
 	"video-feed/internal/db"
 	apphttp "video-feed/internal/http"
 	rediscache "video-feed/internal/middleware/redis"
+	"video-feed/internal/social"
 	"video-feed/internal/video"
 )
 
@@ -20,7 +21,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("open database: %v", err)
 	}
-	if err := db.AutoMigrate(database, &account.Account{}, &video.Video{}); err != nil {
+	if err := db.AutoMigrate(database, &account.Account{}, &video.Video{}, &video.Like{}, &social.Social{}); err != nil {
 		log.Fatalf("auto migrate: %v", err)
 	}
 

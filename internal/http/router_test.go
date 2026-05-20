@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"video-feed/internal/account"
+	"video-feed/internal/social"
 	"video-feed/internal/video"
 
 	"github.com/glebarez/sqlite"
@@ -52,7 +53,7 @@ func TestNewRouterRegistersVideoRoutes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
-	if err := database.AutoMigrate(&account.Account{}, &video.Video{}); err != nil {
+	if err := database.AutoMigrate(&account.Account{}, &video.Video{}, &video.Like{}, &social.Social{}); err != nil {
 		t.Fatalf("migrate models: %v", err)
 	}
 	router := NewRouter(database)
@@ -75,7 +76,7 @@ func TestVideoPublishRequiresJWT(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
-	if err := database.AutoMigrate(&account.Account{}, &video.Video{}); err != nil {
+	if err := database.AutoMigrate(&account.Account{}, &video.Video{}, &video.Like{}, &social.Social{}); err != nil {
 		t.Fatalf("migrate models: %v", err)
 	}
 	router := NewRouter(database)
@@ -96,7 +97,7 @@ func TestLogoutRevokesTokenForProtectedRoutes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
-	if err := database.AutoMigrate(&account.Account{}, &video.Video{}); err != nil {
+	if err := database.AutoMigrate(&account.Account{}, &video.Video{}, &video.Like{}, &social.Social{}); err != nil {
 		t.Fatalf("migrate models: %v", err)
 	}
 	router := NewRouter(database)
@@ -128,7 +129,7 @@ func TestRefreshReturnsNewAccessToken(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
-	if err := database.AutoMigrate(&account.Account{}, &video.Video{}); err != nil {
+	if err := database.AutoMigrate(&account.Account{}, &video.Video{}, &video.Like{}, &social.Social{}); err != nil {
 		t.Fatalf("migrate models: %v", err)
 	}
 	router := NewRouter(database)
@@ -167,6 +168,47 @@ func TestRefreshReturnsNewAccessToken(t *testing.T) {
 	}
 	if refreshResponse.Token == "" {
 		t.Fatal("expected refreshed access token")
+	}
+}
+
+func TestNewRouterRegistersFeedRoutes(t *testing.T) {
+	database, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	if err := database.AutoMigrate(&account.Account{}, &video.Video{}, &video.Like{}, &social.Social{}); err != nil {
+		t.Fatalf("migrate models: %v", err)
+	}
+	if err := database.Create(&video.Video{
+		AuthorID: 1,
+		Username: "alice",
+		Title:    "first vlog",
+		PlayURL:  "http://example.com/video.mp4",
+		CoverURL: "http://example.com/cover.jpg",
+	}).Error; err != nil {
+		t.Fatalf("create video: %v", err)
+	}
+	router := NewRouter(database)
+	body := bytes.NewBufferString(`{"limit":10}`)
+	req := httptest.NewRequest("POST", "/feed/listLatest", body)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var resp struct {
+		VideoList []struct {
+			Title string `json:"title"`
+		} `json:"video_list"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode feed response: %v", err)
+	}
+	if len(resp.VideoList) != 1 || resp.VideoList[0].Title != "first vlog" {
+		t.Fatalf("unexpected feed response: %+v", resp.VideoList)
 	}
 }
 
