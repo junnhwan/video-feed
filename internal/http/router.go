@@ -7,6 +7,7 @@ import (
 
 	"video-feed/internal/account"
 	"video-feed/internal/feed"
+	"video-feed/internal/message"
 	authjwt "video-feed/internal/middleware/jwt"
 	"video-feed/internal/middleware/rabbitmq"
 	"video-feed/internal/middleware/ratelimit"
@@ -137,6 +138,16 @@ func NewRouterWithPublishers(database *gorm.DB, tokenCache *rediscache.Client, p
 		protectedFeedGroup.Use(authjwt.JWTAuth(accountRepo, tokenCache))
 		{
 			protectedFeedGroup.POST("/listByFollowing", feedHandler.ListByFollowing)
+		}
+
+		messageRepo := message.NewRepository(database)
+		messageService := message.NewService(messageRepo)
+		messageHandler := message.NewHandler(messageService)
+		messageGroup := router.Group("/message")
+		messageGroup.Use(authjwt.JWTAuth(accountRepo, tokenCache))
+		{
+			messageGroup.POST("/send", messageHandler.Send)
+			messageGroup.POST("/list", messageHandler.List)
 		}
 
 		notificationHub := worker.NewSSEHub(database)
