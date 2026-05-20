@@ -76,6 +76,20 @@ func (r *Repository) ListByPopularity(ctx context.Context, limit int, popularity
 	return videos, nil
 }
 
+func (r *Repository) GetByIDs(ctx context.Context, ids []uint) ([]*video.Video, error) {
+	videos := make([]*video.Video, 0, len(ids))
+	if len(ids) == 0 {
+		return videos, nil
+	}
+	if err := r.db.WithContext(ctx).
+		Model(&video.Video{}).
+		Where("id IN ?", ids).
+		Find(&videos).Error; err != nil {
+		return nil, err
+	}
+	return videos, nil
+}
+
 func (r *Repository) ListByTag(ctx context.Context, tagName string, limit int) ([]*video.Video, error) {
 	var videos []*video.Video
 	err := r.db.WithContext(ctx).

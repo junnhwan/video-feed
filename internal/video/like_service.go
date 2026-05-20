@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 
+	rediscache "video-feed/internal/middleware/redis"
+
 	"gorm.io/gorm"
 )
 
@@ -16,10 +18,10 @@ var (
 type LikeService struct {
 	repo      *LikeRepository
 	videoRepo *Repository
-	cache     any
+	cache     *rediscache.Client
 }
 
-func NewLikeService(repo *LikeRepository, videoRepo *Repository, cache any) *LikeService {
+func NewLikeService(repo *LikeRepository, videoRepo *Repository, cache *rediscache.Client) *LikeService {
 	return &LikeService{repo: repo, videoRepo: videoRepo, cache: cache}
 }
 
@@ -40,7 +42,7 @@ func (s *LikeService) Like(ctx context.Context, videoID uint, accountID uint) er
 		return ErrAlreadyLiked
 	}
 
-	return s.repo.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	if err := s.repo.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(&Like{VideoID: videoID, AccountID: accountID}).Error; err != nil {
 			return err
 		}
@@ -50,7 +52,11 @@ func (s *LikeService) Like(ctx context.Context, videoID uint, accountID uint) er
 		}
 		return tx.Model(&Video{}).Where("id = ?", videoID).
 			UpdateColumn("popularity", gorm.Expr("popularity + 1")).Error
-	})
+	}); err != nil {
+		return err
+	}
+	UpdatePopularityCache(ctx, s.cache, videoID, 1)
+	return nil
 }
 
 func (s *LikeService) Unlike(ctx context.Context, videoID uint, accountID uint) error {
@@ -70,7 +76,7 @@ func (s *LikeService) Unlike(ctx context.Context, videoID uint, accountID uint) 
 		return ErrNotLiked
 	}
 
-	return s.repo.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	if err := s.repo.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		del := tx.Where("video_id = ? AND account_id = ?", videoID, accountID).Delete(&Like{})
 		if del.Error != nil {
 			return del.Error
@@ -84,7 +90,11 @@ func (s *LikeService) Unlike(ctx context.Context, videoID uint, accountID uint) 
 		}
 		return tx.Model(&Video{}).Where("id = ?", videoID).
 			UpdateColumn("popularity", gorm.Expr("CASE WHEN popularity > 0 THEN popularity - 1 ELSE 0 END")).Error
-	})
+	}); err != nil {
+		return err
+	}
+	UpdatePopularityCache(ctx, s.cache, videoID, -1)
+	return nil
 }
 
 func (s *LikeService) IsLiked(ctx context.Context, videoID uint, accountID uint) (bool, error) {

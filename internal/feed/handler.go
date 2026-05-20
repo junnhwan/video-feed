@@ -93,10 +93,12 @@ func (h *Handler) ListByPopularity(c *gin.Context) {
 	resp, err := h.service.ListByPopularity(
 		c.Request.Context(),
 		req.Limit,
+		req.AsOf,
+		req.Offset,
+		viewerAccountID,
 		req.LatestPopularity,
 		req.LatestBefore,
 		latestIDBefore,
-		viewerAccountID,
 	)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})

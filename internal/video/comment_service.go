@@ -5,6 +5,8 @@ import (
 	"errors"
 	"strings"
 
+	rediscache "video-feed/internal/middleware/redis"
+
 	"gorm.io/gorm"
 )
 
@@ -16,10 +18,10 @@ var (
 type CommentService struct {
 	repo      *CommentRepository
 	videoRepo *Repository
-	cache     any
+	cache     *rediscache.Client
 }
 
-func NewCommentService(repo *CommentRepository, videoRepo *Repository, cache any) *CommentService {
+func NewCommentService(repo *CommentRepository, videoRepo *Repository, cache *rediscache.Client) *CommentService {
 	return &CommentService{repo: repo, videoRepo: videoRepo, cache: cache}
 }
 
@@ -52,6 +54,7 @@ func (s *CommentService) Publish(ctx context.Context, input PublishCommentInput)
 	if err != nil {
 		return nil, err
 	}
+	UpdatePopularityCache(ctx, s.cache, comment.VideoID, 1)
 	return comment, nil
 }
 
@@ -66,13 +69,17 @@ func (s *CommentService) Delete(ctx context.Context, commentID uint, accountID u
 	if comment.AuthorID != accountID {
 		return ErrUnauthorized
 	}
-	return s.repo.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	if err := s.repo.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Delete(comment).Error; err != nil {
 			return err
 		}
 		return tx.Model(&Video{}).Where("id = ?", comment.VideoID).
 			UpdateColumn("popularity", gorm.Expr("CASE WHEN popularity > 0 THEN popularity - 1 ELSE 0 END")).Error
-	})
+	}); err != nil {
+		return err
+	}
+	UpdatePopularityCache(ctx, s.cache, comment.VideoID, -1)
+	return nil
 }
 
 func (s *CommentService) GetAll(ctx context.Context, videoID uint) ([]Comment, error) {

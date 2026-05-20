@@ -2,19 +2,22 @@ package feed
 
 import (
 	"context"
+	"strconv"
 	"strings"
 	"time"
 
+	rediscache "video-feed/internal/middleware/redis"
 	"video-feed/internal/video"
 )
 
 type Service struct {
 	repo     *Repository
 	likeRepo *video.LikeRepository
+	cache    *rediscache.Client
 }
 
-func NewService(repo *Repository, likeRepo *video.LikeRepository, _ any) *Service {
-	return &Service{repo: repo, likeRepo: likeRepo}
+func NewService(repo *Repository, likeRepo *video.LikeRepository, cache *rediscache.Client) *Service {
+	return &Service{repo: repo, likeRepo: likeRepo, cache: cache}
 }
 
 func (s *Service) ListLatest(ctx context.Context, limit int, latestBefore time.Time, viewerAccountID uint) (ListLatestResponse, error) {
@@ -72,8 +75,17 @@ func (s *Service) ListByFollowing(ctx context.Context, limit int, latestBefore t
 	}, nil
 }
 
-func (s *Service) ListByPopularity(ctx context.Context, limit int, latestPopularity int64, latestBefore time.Time, latestIDBefore uint, viewerAccountID uint) (ListByPopularityResponse, error) {
+func (s *Service) ListByPopularity(ctx context.Context, limit int, reqAsOf int64, offset int, viewerAccountID uint, latestPopularity int64, latestBefore time.Time, latestIDBefore uint) (ListByPopularityResponse, error) {
 	limit = normalizeLimit(limit)
+	if offset < 0 {
+		offset = 0
+	}
+	if s.cache != nil {
+		if resp, ok, err := s.listPopularityFromHotSnapshot(ctx, limit, reqAsOf, offset, viewerAccountID); ok || err != nil {
+			return resp, err
+		}
+	}
+
 	videos, err := s.repo.ListByPopularity(ctx, limit, latestPopularity, latestBefore, latestIDBefore)
 	if err != nil {
 		return ListByPopularityResponse{}, err
@@ -93,6 +105,94 @@ func (s *Service) ListByPopularity(ctx context.Context, limit int, latestPopular
 		resp.NextLatestIDBefore = &nextID
 	}
 	return resp, nil
+}
+
+func (s *Service) listPopularityFromHotSnapshot(ctx context.Context, limit int, reqAsOf int64, offset int, viewerAccountID uint) (ListByPopularityResponse, bool, error) {
+	asOf := time.Now().UTC().Truncate(time.Minute)
+	if reqAsOf > 0 {
+		asOf = time.Unix(reqAsOf, 0).UTC().Truncate(time.Minute)
+	}
+
+	keys := make([]string, 0, 60)
+	for i := 0; i < 60; i++ {
+		window := asOf.Add(-time.Duration(i) * time.Minute)
+		keys = append(keys, s.cache.Key("hot:video:1m:%s", window.Format("200601021504")))
+	}
+	dest := s.cache.Key("hot:video:merge:1m:%s", asOf.Format("200601021504"))
+
+	opCtx, cancel := context.WithTimeout(ctx, 80*time.Millisecond)
+	defer cancel()
+
+	exists, err := s.cache.Exists(opCtx, dest)
+	if err != nil {
+		return ListByPopularityResponse{}, false, nil
+	}
+	if !exists {
+		if err := s.cache.ZUnionStore(opCtx, dest, keys, "SUM"); err != nil {
+			return ListByPopularityResponse{}, false, nil
+		}
+		_ = s.cache.Expire(opCtx, dest, 2*time.Minute)
+	}
+
+	start := int64(offset)
+	stop := start + int64(limit) - 1
+	members, err := s.cache.ZRevRange(opCtx, dest, start, stop)
+	if err != nil {
+		return ListByPopularityResponse{}, false, nil
+	}
+	if len(members) == 0 {
+		if offset > 0 {
+			return ListByPopularityResponse{
+				VideoList:  []FeedVideoItem{},
+				AsOf:       asOf.Unix(),
+				NextOffset: offset,
+				HasMore:    false,
+			}, true, nil
+		}
+		return ListByPopularityResponse{}, false, nil
+	}
+
+	ids := make([]uint, 0, len(members))
+	for _, member := range members {
+		id, err := strconv.ParseUint(member, 10, 64)
+		if err == nil && id > 0 {
+			ids = append(ids, uint(id))
+		}
+	}
+	videos, err := s.repo.GetByIDs(ctx, ids)
+	if err != nil {
+		return ListByPopularityResponse{}, false, nil
+	}
+	byID := make(map[uint]*video.Video, len(videos))
+	for _, item := range videos {
+		byID[item.ID] = item
+	}
+	ordered := make([]*video.Video, 0, len(ids))
+	for _, id := range ids {
+		if item := byID[id]; item != nil {
+			ordered = append(ordered, item)
+		}
+	}
+	items, err := s.buildFeedVideos(ctx, ordered, viewerAccountID)
+	if err != nil {
+		return ListByPopularityResponse{}, true, err
+	}
+	resp := ListByPopularityResponse{
+		VideoList:  items,
+		AsOf:       asOf.Unix(),
+		NextOffset: offset + len(items),
+		HasMore:    len(items) == limit,
+	}
+	if len(ordered) > 0 {
+		last := ordered[len(ordered)-1]
+		nextPopularity := last.Popularity
+		nextBefore := last.CreatedAt
+		nextID := last.ID
+		resp.NextLatestPopularity = &nextPopularity
+		resp.NextLatestBefore = &nextBefore
+		resp.NextLatestIDBefore = &nextID
+	}
+	return resp, true, nil
 }
 
 func (s *Service) ListByTag(ctx context.Context, tagName string, limit int, viewerAccountID uint) ([]FeedVideoItem, error) {
