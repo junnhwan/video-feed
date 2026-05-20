@@ -1,0 +1,166 @@
+.backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(10px);
+  z-index: 120;
+  display: grid;
+  justify-items: end;
+}
+
+.drawer {
+  width: min(420px, calc(100vw - 18px));
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.65);
+  border-left: 1px solid rgba(255, 255, 255, 0.12);
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.title {
+  font-weight: 800;
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.closeBtn {
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.body {
+  overflow: auto;
+  padding: 12px 14px;
+  display: grid;
+  gap: 10px;
+  align-content: start;
+}
+
+.hint {
+  color: rgba(255, 255, 255, 0.78);
+  padding: 12px 0;
+  text-align: center;
+}
+
+.bad {
+  color: rgba(254, 44, 85, 0.92);
+}
+
+.foot {
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 12px 14px;
+}
+
+.textarea {
+  width: 100%;
+  min-height: 82px;
+  resize: none;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.9);
+  padding: 10px 12px;
+  outline: none;
+  font-size: 14px;
+  font-family: inherit;
+}
+
+.footActions {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
+}
+
+.comment {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 14px;
+  padding: 10px;
+}
+
+.commentTop {
+  display: grid;
+  gap: 3px;
+}
+
+.commentUser {
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.commentMeta {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.55);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.commentContent {
+  margin-top: 8px;
+  font-size: 13px;
+  line-height: 1.35;
+  color: rgba(255, 255, 255, 0.86);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.commentActions {
+  margin-top: 10px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(0, 0, 0, 0.28);
+  color: rgba(255, 255, 255, 0.86);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.primary {
+  border-color: rgba(254, 44, 85, 0.45);
+  background: rgba(254, 44, 85, 0.14);
+}
+
+.danger {
+  border-color: rgba(254, 44, 85, 0.55);
+  background: rgba(254, 44, 85, 0.12);
+}
+
+@media (max-width: 900px) {
+  .backdrop {
+    justify-items: center;
+    align-items: end;
+  }
+
+  .drawer {
+    width: calc(100vw - 16px);
+    height: min(72vh, 560px);
+    border-left: none;
+    border-top: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 18px 18px 0 0;
+    overflow: hidden;
+  }
+}

@@ -61,6 +61,29 @@ observability:
 	}
 }
 
+func TestLoadBuildsDSNFromYAMLHostPortWhenDSNIsOmitted(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	writeConfigFile(t, path, `
+database:
+  driver: mysql
+  host: mysql
+  port: 3306
+  user: root
+  password: "123456"
+  dbname: video_feed
+`)
+
+	cfg, err := Load(path)
+
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	want := "root:123456@tcp(mysql:3306)/video_feed?charset=utf8mb4&parseTime=True&loc=Local"
+	if cfg.Database.DSN != want {
+		t.Fatalf("DSN = %q, want %q", cfg.Database.DSN, want)
+	}
+}
+
 func writeConfigFile(t *testing.T, path string, content string) {
 	t.Helper()
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {

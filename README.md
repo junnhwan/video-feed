@@ -119,6 +119,22 @@ go run ./cmd/worker
 
 Worker 负责消费点赞、评论、关注、热度、通知和时间线等异步事件。
 
+### Docker Compose
+
+也可以直接启动 MySQL、Redis、RabbitMQ、API 和 Worker：
+
+```powershell
+docker compose up -d --build
+```
+
+本地连接端口：
+
+- API: `http://127.0.0.1:8080`
+- MySQL: `127.0.0.1:13306`
+- Redis: `127.0.0.1:6379`
+- RabbitMQ: `127.0.0.1:5672`
+- RabbitMQ Management: `http://127.0.0.1:15672`
+
 ## Docker 构建
 
 构建 API 镜像：
@@ -143,6 +159,97 @@ go test ./...
 
 项目测试覆盖配置加载、JWT、路由、限流、Feed 游标、热榜缓存、视频详情缓存、分片上传、点赞评论、关注、私信、通知、Worker 消费和 Outbox 时间线等链路。
 
+## 压测与量化实验
+
+压测主入口使用 JMeter，Go 工具负责造数据和切换对比状态，不依赖前端页面。
+
+```powershell
+go run ./cmd/benchseed -config configs/config.yaml -users 50 -videos 1000
+```
+
+`benchseed` 会生成账号、视频、关注、点赞、评论、标签和 Redis 热榜/时间线数据，并输出：
+
+- `bench/results/seed-*.json`：压测 manifest，记录密码、热榜 `as_of`、CSV 路径等。
+- `bench/results/users-*.csv`：JMeter 登录用户数据。
+- `bench/results/videos-*.csv`：JMeter 视频 ID 数据。
+
+读取最近一次 seed 结果：
+
+```powershell
+$seed = Get-ChildItem bench/results/seed-*.json | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+$m = Get-Content $seed.FullName | ConvertFrom-Json
+```
+
+推荐直接运行完整 JMeter 对比脚本：
+
+```powershell
+.\bench\jmeter\run-comparison.ps1 -Manifest $seed.FullName -Threads 20 -Duration 60 -CommentDelayMS 7000
+```
+
+脚本会依次生成热榜 DB fallback、热榜 Redis 快照、详情冷读、详情热缓存、最新 Feed、评论写入的 `.jtl` 和 HTML 报告。评论接口有账号维度限流，`CommentDelayMS` 用于控制每个线程的写入节奏，避免把限流错误混进正常写入延迟。
+
+提取两次 JTL 的对比指标：
+
+```powershell
+.\bench\jmeter\compare-jtl.ps1 `
+  -Baseline bench/results/hot-db.jtl `
+  -Candidate bench/results/hot-redis.jtl `
+  -BaselineName hot-db `
+  -CandidateName hot-redis `
+  -Out bench/results/hot-comparison.md
+```
+
+热榜对比使用同一个 JMeter 场景，通过 Redis 状态切换得到前后对比：
+
+```powershell
+go run ./cmd/benchstate -config configs/config.yaml -manifest $seed.FullName -mode db
+jmeter -n -t bench/jmeter/video-feed-benchmark.jmx `
+  "-Jscenario=hot" "-Jbase_host=127.0.0.1" "-Jbase_port=8080" `
+  "-Jusers_csv=$($m.users_csv)" "-Jvideos_csv=$($m.videos_csv)" "-Jhot_as_of=$($m.hot_as_of)" "-Jpassword=$($m.password)" `
+  "-Jthreads=20" "-Jduration=60" `
+  -l bench/results/hot-db.jtl -e -o bench/results/hot-db-html
+
+go run ./cmd/benchstate -config configs/config.yaml -manifest $seed.FullName -mode hot
+jmeter -n -t bench/jmeter/video-feed-benchmark.jmx `
+  "-Jscenario=hot" "-Jbase_host=127.0.0.1" "-Jbase_port=8080" `
+  "-Jusers_csv=$($m.users_csv)" "-Jvideos_csv=$($m.videos_csv)" "-Jhot_as_of=$($m.hot_as_of)" "-Jpassword=$($m.password)" `
+  "-Jthreads=20" "-Jduration=60" `
+  -l bench/results/hot-redis.jtl -e -o bench/results/hot-redis-html
+```
+
+详情缓存对比：
+
+```powershell
+go run ./cmd/benchstate -config configs/config.yaml -manifest $seed.FullName -mode detail-cold
+jmeter -n -t bench/jmeter/video-feed-benchmark.jmx `
+  "-Jscenario=detail" "-Jbase_host=127.0.0.1" "-Jbase_port=8080" `
+  "-Jusers_csv=$($m.users_csv)" "-Jvideos_csv=$($m.videos_csv)" `
+  "-Jthreads=20" "-Jduration=60" `
+  -l bench/results/detail-cold.jtl -e -o bench/results/detail-cold-html
+
+jmeter -n -t bench/jmeter/video-feed-benchmark.jmx `
+  "-Jscenario=detail" "-Jbase_host=127.0.0.1" "-Jbase_port=8080" `
+  "-Jusers_csv=$($m.users_csv)" "-Jvideos_csv=$($m.videos_csv)" `
+  "-Jthreads=20" "-Jduration=60" `
+  -l bench/results/detail-hot.jtl -e -o bench/results/detail-hot-html
+```
+
+其他场景可以通过 `-Jscenario=latest` 或 `-Jscenario=comment` 单独运行。JMeter HTML 报告用于正式截图和复盘，`bench/results/` 是本地生成结果目录，不会进入 Git。
+
+项目也保留了轻量 Go runner，适合本地快速 smoke 和自动化对比：
+
+```powershell
+go run ./cmd/benchrun -config configs/config.yaml -manifest $seed.FullName -requests 300 -concurrency 20
+```
+
+对比实验重点：
+
+- `popularity-db`：清理热榜 Redis key 后压测 `/feed/listByPopularity` 的 DB fallback 路径。
+- `popularity-hot`：写入 Redis 热榜快照后压测同一路由的热榜路径。
+- `detail-cold` / `detail-hot`：对比视频详情冷读与缓存命中后的延迟。
+- `latest`：压测最新 Feed 游标分页。
+- `comment`：压测登录态评论写入链路。
+
 ## API 概览
 
 主要路由按业务域划分：
@@ -161,6 +268,5 @@ go test ./...
 
 - 增加端到端接口测试和压测脚本，补充 Feed 延迟、缓存命中率和数据库查询次数等可复现指标。
 - 增加 OpenAPI 文档或 Postman 集合，降低接口联调成本。
-- 增加 docker compose 示例，把 MySQL、Redis、RabbitMQ、API 和 Worker 编排成一键启动环境。
 - 对上传文件存储增加对象存储适配层，便于从本地目录切换到云存储。
 - 补充结构化日志和链路追踪，提升异步事件排障能力。

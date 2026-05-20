@@ -97,11 +97,73 @@ func Load(path string) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
-	if err := yaml.Unmarshal(payload, &cfg); err != nil {
+	var fileCfg Config
+	if err := yaml.Unmarshal(payload, &fileCfg); err != nil {
 		return Config{}, err
 	}
+	merge(&cfg, fileCfg)
 	normalize(&cfg)
 	return cfg, nil
+}
+
+func merge(cfg *Config, fileCfg Config) {
+	if fileCfg.Server.Port != 0 {
+		cfg.Server.Port = fileCfg.Server.Port
+	}
+	if fileCfg.Database.Driver != "" {
+		cfg.Database.Driver = fileCfg.Database.Driver
+	}
+	if fileCfg.Database.DSN != "" {
+		cfg.Database.DSN = fileCfg.Database.DSN
+	} else if fileCfg.Database.Host != "" || fileCfg.Database.Port != 0 || fileCfg.Database.User != "" || fileCfg.Database.Password != "" || fileCfg.Database.DBName != "" {
+		cfg.Database.DSN = ""
+	}
+	if fileCfg.Database.Host != "" {
+		cfg.Database.Host = fileCfg.Database.Host
+	}
+	if fileCfg.Database.Port != 0 {
+		cfg.Database.Port = fileCfg.Database.Port
+	}
+	if fileCfg.Database.User != "" {
+		cfg.Database.User = fileCfg.Database.User
+	}
+	if fileCfg.Database.Password != "" {
+		cfg.Database.Password = fileCfg.Database.Password
+	}
+	if fileCfg.Database.DBName != "" {
+		cfg.Database.DBName = fileCfg.Database.DBName
+	}
+	if fileCfg.Redis.Host != "" {
+		cfg.Redis.Host = fileCfg.Redis.Host
+	}
+	if fileCfg.Redis.Port != 0 {
+		cfg.Redis.Port = fileCfg.Redis.Port
+	}
+	if fileCfg.Redis.Password != "" {
+		cfg.Redis.Password = fileCfg.Redis.Password
+	}
+	if fileCfg.Redis.DB != 0 {
+		cfg.Redis.DB = fileCfg.Redis.DB
+	}
+	if fileCfg.RabbitMQ.Host != "" {
+		cfg.RabbitMQ.Host = fileCfg.RabbitMQ.Host
+	}
+	if fileCfg.RabbitMQ.Port != 0 {
+		cfg.RabbitMQ.Port = fileCfg.RabbitMQ.Port
+	}
+	if fileCfg.RabbitMQ.Username != "" {
+		cfg.RabbitMQ.Username = fileCfg.RabbitMQ.Username
+	}
+	if fileCfg.RabbitMQ.Password != "" {
+		cfg.RabbitMQ.Password = fileCfg.RabbitMQ.Password
+	}
+	cfg.Observability.Pprof.Enabled = fileCfg.Observability.Pprof.Enabled
+	if fileCfg.Observability.Pprof.APIAddr != "" {
+		cfg.Observability.Pprof.APIAddr = fileCfg.Observability.Pprof.APIAddr
+	}
+	if fileCfg.Observability.Pprof.WorkerAddr != "" {
+		cfg.Observability.Pprof.WorkerAddr = fileCfg.Observability.Pprof.WorkerAddr
+	}
 }
 
 func normalize(cfg *Config) {

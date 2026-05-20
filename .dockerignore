@@ -1,5 +1,9 @@
 .git
 docs
+cv.md
+bench/results
+frontend/node_modules
+frontend/dist
 .run
 tmp
 *.log

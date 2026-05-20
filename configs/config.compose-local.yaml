@@ -4,7 +4,7 @@ server:
 database:
   driver: mysql
   host: 127.0.0.1
-  port: 3307
+  port: 13306
   user: root
   password: "123456"
   dbname: video_feed

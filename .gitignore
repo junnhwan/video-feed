@@ -1,3 +1,6 @@
 # Local development and learning notes.
 docs/
 cv.md
+bench/results/
+frontend/node_modules/
+frontend/dist/

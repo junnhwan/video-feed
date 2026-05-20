@@ -1,0 +1,162 @@
+.shell {
+  height: 100vh;
+  display: grid;
+  grid-template-columns: 232px 1fr;
+}
+
+.aside {
+  border-right: 1px solid var(--border-color);
+  background: rgba(12, 16, 23, 0.78);
+  backdrop-filter: blur(18px);
+  padding: 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.logo {
+  font-weight: 900;
+  font-size: 18px;
+  padding: 10px;
+  border-radius: 8px;
+  background: rgba(43, 161, 255, 0.1);
+  border: 1px solid rgba(43, 161, 255, 0.22);
+  text-align: center;
+}
+
+.logo:hover {
+  color: #dceeff;
+}
+
+.nav {
+  display: grid;
+  gap: 4px;
+}
+
+.navLink {
+  display: block;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 14px;
+  color: var(--text-secondary);
+  transition: background 120ms, color 120ms;
+}
+
+.navLink:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-primary);
+}
+
+.navLink.active {
+  background: rgba(43, 161, 255, 0.12);
+  color: var(--text-primary);
+}
+
+.asideFoot {
+  margin-top: auto;
+  display: grid;
+  gap: 10px;
+}
+
+.user {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  padding: 0 4px;
+}
+
+.notifRow {
+  display: flex;
+  justify-content: center;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.ok {
+  background: #22c55e;
+}
+
+.bad {
+  background: #ff5d73;
+}
+
+.userName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.btn {
+  border: 1px solid var(--border-color);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 14px;
+  transition: background 120ms;
+}
+
+.btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.primary {
+  border-color: rgba(43, 161, 255, 0.55);
+  background: rgba(43, 161, 255, 0.18);
+}
+
+.primary:hover {
+  background: rgba(43, 161, 255, 0.26);
+}
+
+.main {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.content {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.mobileNav {
+  display: none;
+}
+
+@media (max-width: 760px) {
+  .shell {
+    grid-template-columns: 1fr;
+  }
+
+  .aside {
+    display: none;
+  }
+
+  .mobileNav {
+    display: flex;
+    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+    overflow-x: auto;
+  }
+
+  .mobileLink {
+    padding: 12px 16px;
+    font-size: 13px;
+    white-space: nowrap;
+    color: var(--text-secondary);
+    border-bottom: 2px solid transparent;
+    transition: color 120ms, border-color 120ms;
+  }
+
+  .mobileLink.active {
+    color: var(--text-primary);
+    border-bottom-color: rgba(43, 161, 255, 0.8);
+  }
+}
