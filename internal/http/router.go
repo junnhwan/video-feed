@@ -53,7 +53,7 @@ func NewRouterWithPublishers(database *gorm.DB, tokenCache *rediscache.Client, p
 		}
 
 		videoRepo := video.NewRepository(database)
-		videoService := video.NewService(videoRepo)
+		videoService := video.NewService(videoRepo, tokenCache)
 		videoHandler := video.NewHandler(videoService)
 
 		videoGroup := router.Group("/video")
