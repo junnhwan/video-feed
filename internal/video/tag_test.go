@@ -59,7 +59,7 @@ func newTagTestService(t *testing.T) (*Service, *gorm.DB) {
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
-	if err := db.AutoMigrate(&Video{}, &Tag{}, &VideoTag{}); err != nil {
+	if err := db.AutoMigrate(&Video{}, &OutboxMsg{}, &Tag{}, &VideoTag{}); err != nil {
 		t.Fatalf("migrate models: %v", err)
 	}
 	return NewService(NewRepository(db)), db

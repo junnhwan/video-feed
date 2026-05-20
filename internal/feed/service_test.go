@@ -2,13 +2,17 @@ package feed
 
 import (
 	"context"
+	"strconv"
 	"testing"
 	"time"
 
+	rediscache "video-feed/internal/middleware/redis"
 	"video-feed/internal/social"
 	"video-feed/internal/video"
 
+	"github.com/alicebob/miniredis/v2"
 	"github.com/glebarez/sqlite"
+	goredis "github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 )
 
@@ -18,7 +22,7 @@ func newTestService(t *testing.T) (*Service, *gorm.DB) {
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
-	if err := database.AutoMigrate(&video.Video{}, &video.Like{}, &social.Social{}); err != nil {
+	if err := database.AutoMigrate(&video.Video{}, &video.OutboxMsg{}, &video.Like{}, &social.Social{}); err != nil {
 		t.Fatalf("migrate models: %v", err)
 	}
 	return NewService(NewRepository(database), video.NewLikeRepository(database), nil), database
@@ -65,6 +69,42 @@ func TestListLatestUsesTimeCursor(t *testing.T) {
 	if secondPage.VideoList[0].Title != "oldest" {
 		t.Fatalf("expected oldest, got %q", secondPage.VideoList[0].Title)
 	}
+}
+
+func TestListLatestUsesRedisGlobalTimelineAndStitchesColdData(t *testing.T) {
+	service, db := newTestService(t)
+	mr, err := miniredis.Run()
+	if err != nil {
+		t.Fatalf("start miniredis: %v", err)
+	}
+	defer mr.Close()
+	cache := rediscache.NewClient(goredis.NewClient(&goredis.Options{Addr: mr.Addr()}), "")
+	defer cache.Close()
+	service.cache = cache
+
+	base := time.Date(2026, 5, 20, 10, 0, 0, 0, time.UTC)
+	oldest := createVideo(t, db, video.Video{AuthorID: 1, Username: "alice", Title: "oldest", PlayURL: "1.mp4", CoverURL: "1.jpg", CreatedAt: base})
+	middle := createVideo(t, db, video.Video{AuthorID: 1, Username: "alice", Title: "middle", PlayURL: "2.mp4", CoverURL: "2.jpg", CreatedAt: base.Add(time.Minute)})
+	newest := createVideo(t, db, video.Video{AuthorID: 1, Username: "alice", Title: "newest", PlayURL: "3.mp4", CoverURL: "3.jpg", CreatedAt: base.Add(2 * time.Minute)})
+
+	if err := cache.ZAdd(context.Background(), cache.Key("feed:global_timeline"), goredis.Z{
+		Score:  float64(middle.CreatedAt.UnixMilli()),
+		Member: strconv.FormatUint(uint64(middle.ID), 10),
+	}); err != nil {
+		t.Fatalf("seed timeline: %v", err)
+	}
+
+	resp, err := service.ListLatest(context.Background(), 2, time.Time{}, 0)
+	if err != nil {
+		t.Fatalf("list latest: %v", err)
+	}
+	if len(resp.VideoList) != 2 {
+		t.Fatalf("expected redis hot item stitched with cold DB item, got %d: %+v", len(resp.VideoList), resp.VideoList)
+	}
+	if resp.VideoList[0].ID != middle.ID || resp.VideoList[1].ID != oldest.ID {
+		t.Fatalf("unexpected stitched order: %+v", resp.VideoList)
+	}
+	_ = newest
 }
 
 func TestListLikesCountUsesCompositeCursor(t *testing.T) {

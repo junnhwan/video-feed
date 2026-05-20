@@ -17,11 +17,35 @@ func newTestService(t *testing.T) *Service {
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
-	if err := database.AutoMigrate(&Video{}); err != nil {
+	if err := database.AutoMigrate(&Video{}, &OutboxMsg{}); err != nil {
 		t.Fatalf("migrate video: %v", err)
 	}
 
 	return NewService(NewRepository(database))
+}
+
+func TestPublishCreatesPendingOutboxMessage(t *testing.T) {
+	service := newTestService(t)
+	ctx := context.Background()
+
+	published, err := service.Publish(ctx, PublishInput{
+		AuthorID: 7,
+		Username: "alice",
+		Title:    "first vlog",
+		PlayURL:  "http://example.com/video.mp4",
+		CoverURL: "http://example.com/cover.jpg",
+	})
+	if err != nil {
+		t.Fatalf("publish: %v", err)
+	}
+
+	var msg OutboxMsg
+	if err := service.repo.db.WithContext(ctx).First(&msg, "video_id = ?", published.ID).Error; err != nil {
+		t.Fatalf("find outbox message: %v", err)
+	}
+	if msg.EventType != "video_published" || msg.Status != "pending" || msg.CreateTime.IsZero() {
+		t.Fatalf("unexpected outbox message: %+v", msg)
+	}
 }
 
 func TestPublishCreatesVideo(t *testing.T) {

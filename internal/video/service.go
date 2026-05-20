@@ -63,6 +63,14 @@ func (s *Service) Publish(ctx context.Context, input PublishInput) (*Video, erro
 		if err := tx.Create(video).Error; err != nil {
 			return err
 		}
+		if err := tx.Create(&OutboxMsg{
+			VideoID:    video.ID,
+			EventType:  "video_published",
+			CreateTime: video.CreatedAt,
+			Status:     "pending",
+		}).Error; err != nil {
+			return err
+		}
 		for _, tagName := range ExtractTags(video.Title + " " + video.Description) {
 			var tag Tag
 			if err := tx.Where("name = ?", tagName).FirstOrCreate(&tag, Tag{Name: tagName}).Error; err != nil {

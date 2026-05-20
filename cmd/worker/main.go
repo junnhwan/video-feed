@@ -23,7 +23,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("open database: %v", err)
 	}
-	if err := db.AutoMigrate(database, &account.Account{}, &video.Video{}, &video.Like{}, &video.Comment{}, &video.Tag{}, &video.VideoTag{}, &social.Social{}, &worker.Notification{}); err != nil {
+	if err := db.AutoMigrate(database, &account.Account{}, &video.Video{}, &video.OutboxMsg{}, &video.Like{}, &video.Comment{}, &video.Tag{}, &video.VideoTag{}, &social.Social{}, &worker.Notification{}); err != nil {
 		log.Fatalf("auto migrate: %v", err)
 	}
 
@@ -59,6 +59,7 @@ func main() {
 	run(ctx, "social", worker.NewSocialWorker(broker.Ch, socialRepo, rabbitmq.SocialQueue).Run)
 	if cache != nil {
 		run(ctx, "popularity", worker.NewPopularityWorker(broker.Ch, cache, rabbitmq.PopularityQueue).Run)
+		run(ctx, "timeline", worker.NewTimelineWorker(broker.Ch, cache, rabbitmq.TimelineQueue).Run)
 	}
 
 	<-ctx.Done()

@@ -48,6 +48,13 @@ func (c *Client) ZRevRangeByScore(ctx context.Context, key string, max string, m
 	}).Result()
 }
 
+func (c *Client) ZRemRangeByRank(ctx context.Context, key string, start int64, stop int64) error {
+	if c == nil || c.rdb == nil {
+		return nil
+	}
+	return c.rdb.ZRemRangeByRank(ctx, key, start, stop).Err()
+}
+
 func (c *Client) ZUnionStore(ctx context.Context, dest string, keys []string, aggregate string) error {
 	if c == nil || c.rdb == nil {
 		return nil

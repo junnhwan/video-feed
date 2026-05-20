@@ -167,6 +167,12 @@ func NewRouterWithPublishers(database *gorm.DB, tokenCache *rediscache.Client, p
 		}
 		if publishers != nil && publishers.Base != nil && publishers.Base.Ch != nil {
 			startNotificationWorkers(publishers.Base.Ch, database, notificationHub)
+			if publishers.Timeline != nil {
+				worker.StartOutboxPoller(context.Background(), database, publishers.Timeline)
+				if tokenCache != nil {
+					runNotificationWorker(context.Background(), "timeline", worker.NewTimelineWorker(publishers.Base.Ch, tokenCache, rabbitmq.TimelineQueue).Run)
+				}
+			}
 		}
 	}
 	return router

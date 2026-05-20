@@ -16,7 +16,7 @@ func TestListByTagReturnsTaggedVideos(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
-	if err := db.AutoMigrate(&video.Video{}, &video.Like{}, &video.Tag{}, &video.VideoTag{}, &social.Social{}); err != nil {
+	if err := db.AutoMigrate(&video.Video{}, &video.OutboxMsg{}, &video.Like{}, &video.Tag{}, &video.VideoTag{}, &social.Social{}); err != nil {
 		t.Fatalf("migrate models: %v", err)
 	}
 	videoService := video.NewService(video.NewRepository(db))

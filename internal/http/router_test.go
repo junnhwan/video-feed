@@ -54,7 +54,7 @@ func TestNewRouterRegistersVideoRoutes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
-	if err := database.AutoMigrate(&account.Account{}, &video.Video{}, &video.Like{}, &video.Comment{}, &social.Social{}); err != nil {
+	if err := database.AutoMigrate(&account.Account{}, &video.Video{}, &video.OutboxMsg{}, &video.Like{}, &video.Comment{}, &social.Social{}); err != nil {
 		t.Fatalf("migrate models: %v", err)
 	}
 	router := NewRouter(database)
@@ -77,7 +77,7 @@ func TestVideoPublishRequiresJWT(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
-	if err := database.AutoMigrate(&account.Account{}, &video.Video{}, &video.Like{}, &video.Comment{}, &social.Social{}); err != nil {
+	if err := database.AutoMigrate(&account.Account{}, &video.Video{}, &video.OutboxMsg{}, &video.Like{}, &video.Comment{}, &social.Social{}); err != nil {
 		t.Fatalf("migrate models: %v", err)
 	}
 	router := NewRouter(database)
@@ -98,7 +98,7 @@ func TestLogoutRevokesTokenForProtectedRoutes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
-	if err := database.AutoMigrate(&account.Account{}, &video.Video{}, &video.Like{}, &video.Comment{}, &social.Social{}); err != nil {
+	if err := database.AutoMigrate(&account.Account{}, &video.Video{}, &video.OutboxMsg{}, &video.Like{}, &video.Comment{}, &social.Social{}); err != nil {
 		t.Fatalf("migrate models: %v", err)
 	}
 	router := NewRouter(database)
@@ -130,7 +130,7 @@ func TestRefreshReturnsNewAccessToken(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
-	if err := database.AutoMigrate(&account.Account{}, &video.Video{}, &video.Like{}, &video.Comment{}, &social.Social{}); err != nil {
+	if err := database.AutoMigrate(&account.Account{}, &video.Video{}, &video.OutboxMsg{}, &video.Like{}, &video.Comment{}, &social.Social{}); err != nil {
 		t.Fatalf("migrate models: %v", err)
 	}
 	router := NewRouter(database)
@@ -177,7 +177,7 @@ func TestNewRouterRegistersFeedRoutes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
-	if err := database.AutoMigrate(&account.Account{}, &video.Video{}, &video.Like{}, &video.Comment{}, &social.Social{}); err != nil {
+	if err := database.AutoMigrate(&account.Account{}, &video.Video{}, &video.OutboxMsg{}, &video.Like{}, &video.Comment{}, &social.Social{}); err != nil {
 		t.Fatalf("migrate models: %v", err)
 	}
 	if err := database.Create(&video.Video{
@@ -218,7 +218,7 @@ func TestLikeRouteUpdatesFeedState(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
-	if err := database.AutoMigrate(&account.Account{}, &video.Video{}, &video.Like{}, &video.Comment{}, &social.Social{}); err != nil {
+	if err := database.AutoMigrate(&account.Account{}, &video.Video{}, &video.OutboxMsg{}, &video.Like{}, &video.Comment{}, &social.Social{}); err != nil {
 		t.Fatalf("migrate models: %v", err)
 	}
 	seed := video.Video{AuthorID: 99, Username: "creator", Title: "first vlog", PlayURL: "1.mp4", CoverURL: "1.jpg"}
@@ -269,7 +269,7 @@ func TestCommentRoutesPublishAndList(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
-	if err := database.AutoMigrate(&account.Account{}, &video.Video{}, &video.Like{}, &video.Comment{}, &social.Social{}); err != nil {
+	if err := database.AutoMigrate(&account.Account{}, &video.Video{}, &video.OutboxMsg{}, &video.Like{}, &video.Comment{}, &social.Social{}); err != nil {
 		t.Fatalf("migrate models: %v", err)
 	}
 	seed := video.Video{AuthorID: 99, Username: "creator", Title: "first vlog", PlayURL: "1.mp4", CoverURL: "1.jpg"}
@@ -313,7 +313,7 @@ func TestSocialRoutesFollowAndCounts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
-	if err := database.AutoMigrate(&account.Account{}, &video.Video{}, &video.Like{}, &video.Comment{}, &social.Social{}); err != nil {
+	if err := database.AutoMigrate(&account.Account{}, &video.Video{}, &video.OutboxMsg{}, &video.Like{}, &video.Comment{}, &social.Social{}); err != nil {
 		t.Fatalf("migrate models: %v", err)
 	}
 	router := NewRouter(database)

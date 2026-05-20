@@ -16,6 +16,16 @@ type Video struct {
 	UpdatedAt   time.Time `json:"updated_at"`
 }
 
+type OutboxMsg struct {
+	ID         uint      `gorm:"primaryKey" json:"id"`
+	VideoID    uint      `gorm:"index;not null" json:"video_id"`
+	EventType  string    `gorm:"size:50;not null" json:"event_type"`
+	CreateTime time.Time `gorm:"index;not null" json:"create_time"`
+	Status     string    `gorm:"size:50;index;not null" json:"status"`
+	CreatedAt  time.Time `json:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at"`
+}
+
 type PublishInput struct {
 	AuthorID    uint
 	Username    string

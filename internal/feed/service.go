@@ -2,12 +2,15 @@ package feed
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
 
 	rediscache "video-feed/internal/middleware/redis"
 	"video-feed/internal/video"
+
+	goredis "github.com/redis/go-redis/v9"
 )
 
 type Service struct {
@@ -22,7 +25,13 @@ func NewService(repo *Repository, likeRepo *video.LikeRepository, cache *redisca
 
 func (s *Service) ListLatest(ctx context.Context, limit int, latestBefore time.Time, viewerAccountID uint) (ListLatestResponse, error) {
 	limit = normalizeLimit(limit)
-	videos, err := s.repo.ListLatest(ctx, limit, latestBefore)
+	videos, fromTimeline, err := s.listLatestFromGlobalTimeline(ctx, limit, latestBefore)
+	if err != nil {
+		return ListLatestResponse{}, err
+	}
+	if !fromTimeline {
+		videos, err = s.repo.ListLatest(ctx, limit, latestBefore)
+	}
 	if err != nil {
 		return ListLatestResponse{}, err
 	}
@@ -35,6 +44,110 @@ func (s *Service) ListLatest(ctx context.Context, limit int, latestBefore time.T
 		NextTime:  nextTime(videos),
 		HasMore:   len(videos) == limit,
 	}, nil
+}
+
+func (s *Service) listLatestFromGlobalTimeline(ctx context.Context, limit int, latestBefore time.Time) ([]*video.Video, bool, error) {
+	if s.cache == nil {
+		return nil, false, nil
+	}
+	key := s.cache.Key("feed:global_timeline")
+	tail, err := s.cache.ZRangeWithScores(ctx, key, 0, 0)
+	if err != nil {
+		return nil, false, nil
+	}
+	if len(tail) == 0 {
+		if err := s.rebuildGlobalTimeline(ctx, key); err != nil {
+			return nil, false, nil
+		}
+		tail, err = s.cache.ZRangeWithScores(ctx, key, 0, 0)
+		if err != nil {
+			return nil, false, nil
+		}
+		if len(tail) == 0 {
+			return []*video.Video{}, true, nil
+		}
+	}
+
+	reqTime := time.Now().UnixMilli()
+	if !latestBefore.IsZero() {
+		reqTime = latestBefore.UnixMilli()
+	}
+	watermark := int64(tail[0].Score)
+	if reqTime <= watermark {
+		videos, err := s.repo.ListLatest(ctx, limit, latestBefore)
+		return videos, true, err
+	}
+
+	maxScore := "+inf"
+	if !latestBefore.IsZero() {
+		maxScore = strconv.FormatInt(reqTime-1, 10)
+	}
+	members, err := s.cache.ZRevRangeByScore(ctx, key, maxScore, "-inf", 0, int64(limit))
+	if err != nil {
+		return nil, false, nil
+	}
+	ids := make([]uint, 0, len(members))
+	for _, member := range members {
+		id, err := strconv.ParseUint(member, 10, 64)
+		if err == nil && id > 0 {
+			ids = append(ids, uint(id))
+		}
+	}
+	videos, err := s.videosByIDsInOrder(ctx, ids)
+	if err != nil {
+		return nil, true, err
+	}
+	if len(videos) < limit {
+		coldCursor := latestBefore
+		if len(videos) > 0 {
+			coldCursor = videos[len(videos)-1].CreatedAt
+		}
+		coldVideos, err := s.repo.ListLatest(ctx, limit-len(videos), coldCursor)
+		if err != nil {
+			return nil, true, err
+		}
+		videos = append(videos, coldVideos...)
+	}
+	return videos, true, nil
+}
+
+func (s *Service) rebuildGlobalTimeline(ctx context.Context, key string) error {
+	videos, err := s.repo.ListLatest(ctx, 1000, time.Time{})
+	if err != nil {
+		return err
+	}
+	if len(videos) == 0 {
+		return nil
+	}
+	members := make([]goredis.Z, 0, len(videos))
+	for _, item := range videos {
+		members = append(members, goredis.Z{
+			Score:  float64(item.CreatedAt.UnixMilli()),
+			Member: fmt.Sprintf("%d", item.ID),
+		})
+	}
+	return s.cache.ZAdd(ctx, key, members...)
+}
+
+func (s *Service) videosByIDsInOrder(ctx context.Context, ids []uint) ([]*video.Video, error) {
+	if len(ids) == 0 {
+		return []*video.Video{}, nil
+	}
+	videos, err := s.repo.GetByIDs(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	byID := make(map[uint]*video.Video, len(videos))
+	for _, item := range videos {
+		byID[item.ID] = item
+	}
+	ordered := make([]*video.Video, 0, len(ids))
+	for _, id := range ids {
+		if item := byID[id]; item != nil {
+			ordered = append(ordered, item)
+		}
+	}
+	return ordered, nil
 }
 
 func (s *Service) ListLikesCount(ctx context.Context, limit int, cursor *LikesCountCursor, viewerAccountID uint) (ListLikesCountResponse, error) {

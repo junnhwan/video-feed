@@ -6,6 +6,7 @@ type Publishers struct {
 	Comment    *CommentMQ
 	Popularity *PopularityMQ
 	Social     *SocialMQ
+	Timeline   *TimelineMQ
 }
 
 func NewPublishers(base *RabbitMQ) (*Publishers, error) {
@@ -28,11 +29,16 @@ func NewPublishers(base *RabbitMQ) (*Publishers, error) {
 	if err := DeclareNotificationTopology(base); err != nil {
 		return nil, err
 	}
+	timelineMQ, err := NewTimelineMQ(base)
+	if err != nil {
+		return nil, err
+	}
 	return &Publishers{
 		Base:       base,
 		Like:       likeMQ,
 		Comment:    commentMQ,
 		Popularity: popularityMQ,
 		Social:     socialMQ,
+		Timeline:   timelineMQ,
 	}, nil
 }
