@@ -45,15 +45,36 @@ export default function AuthView() {
   return (
     <div className={styles.page}>
       <div className={styles.card}>
-        <h2 className={styles.title}>{isRegister ? '注册账号' : '登录'}</h2>
+        {/* Brand header */}
+        <div className={styles.brand}>
+          <div className={styles.logoIcon}>
+            <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+          </div>
+          <div className={styles.brandName}>ShortVideo</div>
+          <div className={styles.brandSlogan}>发现精彩，记录生活</div>
+        </div>
 
-        <form className={styles.form} onSubmit={handleSubmit}>
+        {/* Login / Register toggle */}
+        <div className={styles.toggle}>
+          <div className={`${styles.toggleSlider} ${isRegister ? styles.toggleSliderRight : ''}`} />
+          <button
+            className={`${styles.toggleBtn} ${!isRegister ? styles.toggleBtnActive : ''}`}
+            onClick={() => setIsRegister(false)}
+          >登录</button>
+          <button
+            className={`${styles.toggleBtn} ${isRegister ? styles.toggleBtnActive : ''}`}
+            onClick={() => setIsRegister(true)}
+          >注册</button>
+        </div>
+
+        <form className={styles.form} onSubmit={handleSubmit} key={isRegister ? 'reg' : 'login'}>
           <label className={styles.label}>
             用户名
             <input
               className={styles.input}
               value={username}
               onChange={(e) => setUsername(e.target.value)}
+              placeholder="请输入用户名"
               autoComplete="username"
               autoFocus
             />
@@ -66,6 +87,7 @@ export default function AuthView() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              placeholder="请输入密码"
               autoComplete={isRegister ? 'new-password' : 'current-password'}
             />
           </label>
@@ -74,13 +96,6 @@ export default function AuthView() {
             {loading ? '处理中...' : (isRegister ? '注册' : '登录')}
           </button>
         </form>
-
-        <p className={styles.switch}>
-          {isRegister ? '已有账号？' : '没有账号？'}
-          <button className={styles.linkBtn} onClick={() => setIsRegister(!isRegister)}>
-            {isRegister ? '去登录' : '去注册'}
-          </button>
-        </p>
       </div>
     </div>
   )

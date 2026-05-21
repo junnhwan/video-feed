@@ -124,6 +124,11 @@ textarea {
   to { transform: translateX(0); }
 }
 
+@keyframes slideOutRight {
+  from { transform: translateX(0); opacity: 1; }
+  to { transform: translateX(100%); opacity: 0; }
+}
+
 @keyframes slideInUp {
   from { transform: translateY(100%); }
   to { transform: translateY(0); }
@@ -132,6 +137,11 @@ textarea {
 @keyframes slideInDown {
   from { opacity: 0; transform: translateY(-8px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideOutUp {
+  from { opacity: 1; transform: translateY(0); }
+  to { opacity: 0; transform: translateY(-12px); }
 }
 
 @keyframes scaleIn {
@@ -150,6 +160,73 @@ textarea {
   to { transform: rotate(360deg); }
 }
 
+/* Skeleton pulse */
+@keyframes skeletonPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* Shimmer sweep for skeleton */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* Progress bar stripe flow */
+@keyframes stripeFlow {
+  0% { background-position: 0 0; }
+  100% { background-position: 40px 0; }
+}
+
+/* Heart particle burst */
+@keyframes particleBurst {
+  0% { opacity: 1; transform: translate(0, 0) scale(1); }
+  100% { opacity: 0; transform: translate(var(--tx), var(--ty)) scale(0); }
+}
+
+/* Ripple expand */
+@keyframes rippleExpand {
+  0% { transform: scale(0); opacity: 0.5; }
+  100% { transform: scale(4); opacity: 0; }
+}
+
+/* Number pop +1 */
+@keyframes numPop {
+  0% { opacity: 1; transform: translateY(0) scale(1); }
+  50% { opacity: 1; transform: translateY(-18px) scale(1.2); }
+  100% { opacity: 0; transform: translateY(-32px) scale(0.8); }
+}
+
+/* Page enter/exit */
+@keyframes pageEnter {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pageExit {
+  from { opacity: 1; transform: translateY(0); }
+  to { opacity: 0; transform: translateY(-8px); }
+}
+
+/* Staggered children entrance */
+@keyframes staggerIn {
+  from { opacity: 0; transform: translateY(10px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Check mark draw for success */
+@keyframes checkDraw {
+  0% { stroke-dashoffset: 30; }
+  100% { stroke-dashoffset: 0; }
+}
+
+/* Success circle scale */
+@keyframes successCircle {
+  0% { transform: scale(0); opacity: 0; }
+  60% { transform: scale(1.1); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
 /* ── Utility Classes ─────────────────────────────── */
 .animate-fade-in {
   animation: fadeIn var(--duration-normal) var(--ease-out);
@@ -161,4 +238,45 @@ textarea {
 
 .animate-scale-in {
   animation: scaleIn var(--duration-fast) var(--ease-spring);
+}
+
+.animate-page-enter {
+  animation: pageEnter var(--duration-normal) var(--ease-out) both;
+}
+
+.animate-page-exit {
+  animation: pageExit var(--duration-fast) var(--ease-out) both;
+}
+
+/* Skeleton base */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--bg-tertiary) 25%,
+    var(--bg-secondary) 37%,
+    var(--bg-tertiary) 63%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.8s ease-in-out infinite;
+  border-radius: var(--radius-sm);
+}
+
+/* Ripple host */
+.ripple-host {
+  position: relative;
+  overflow: hidden;
+}
+
+.ripple-host .ripple {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.35);
+  transform: scale(0);
+  animation: rippleExpand 0.6s ease-out forwards;
+  pointer-events: none;
+}
+
+/* Dark ripple variant */
+.ripple-host .ripple--dark {
+  background: rgba(0, 0, 0, 0.08);
 }

@@ -18,33 +18,61 @@
 }
 
 .logo {
-  font-weight: 900;
-  font-size: 18px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
   padding: 10px;
   border-radius: var(--radius-sm);
-  text-align: center;
+  text-decoration: none;
   color: var(--text-primary);
-  letter-spacing: 0.3px;
+  transition: background var(--duration-fast) var(--ease-out);
 }
 
 .logo:hover {
   background: var(--bg-hover);
 }
 
+.logoIcon {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(135deg, var(--accent), #ff6b81);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(254, 44, 85, 0.2);
+}
+
+.logoIcon svg {
+  width: 18px;
+  height: 18px;
+  fill: #ffffff;
+}
+
+.logoText {
+  font-weight: 900;
+  font-size: 17px;
+  letter-spacing: -0.3px;
+}
+
 /* ── Navigation ──────────────────────────────── */
 
 .nav {
   display: grid;
-  gap: 4px;
+  gap: 2px;
 }
 
 .navLink {
-  display: block;
-  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
   border-radius: var(--radius-sm);
   font-size: 14px;
   font-weight: 500;
   color: var(--text-secondary);
+  text-decoration: none;
   transition:
     background var(--duration-fast) var(--ease-out),
     color var(--duration-fast) var(--ease-out);
@@ -58,9 +86,43 @@
 .navLink.active {
   background: var(--accent-soft);
   color: var(--accent);
-  border-left: 3px solid var(--accent);
-  padding-left: 11px;
   font-weight: 600;
+}
+
+.navIcon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+}
+
+.navIcon svg {
+  width: 20px;
+  height: 20px;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.activeIndicator {
+  position: relative;
+}
+
+.activeIndicator::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 6px;
+  bottom: 6px;
+  width: 3px;
+  background: var(--accent);
+  border-radius: 0 3px 3px 0;
+  transition: transform var(--duration-fast) var(--ease-spring);
 }
 
 /* ── Sidebar Footer ──────────────────────────── */
@@ -69,6 +131,8 @@
   margin-top: auto;
   display: grid;
   gap: 10px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
 }
 
 .user {
@@ -129,14 +193,12 @@
 
 .primary {
   border-color: var(--accent);
-  background: var(--accent);
+  background: linear-gradient(135deg, var(--accent), #ff6b81);
   color: #ffffff;
   font-weight: 600;
 }
 
 .primary:hover {
-  background: var(--accent-hover);
-  border-color: var(--accent-hover);
   box-shadow: 0 2px 12px rgba(254, 44, 85, 0.25);
 }
 
@@ -152,6 +214,7 @@
 .content {
   flex: 1;
   overflow-y: auto;
+  animation: pageEnter var(--duration-normal) var(--ease-out) both;
 }
 
 /* ── Mobile Navigation ───────────────────────── */
@@ -188,6 +251,7 @@
     white-space: nowrap;
     color: var(--text-secondary);
     border-bottom: 2px solid transparent;
+    text-decoration: none;
     transition:
       color var(--duration-fast) var(--ease-out),
       border-color var(--duration-fast) var(--ease-out);

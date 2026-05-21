@@ -9,9 +9,9 @@ import styles from './UploadView.module.css'
 
 /* ---------- constants ---------- */
 
-const CHUNK_SIZE = 5 * 1024 * 1024          // 5 MB per chunk
-const HASH_READ_SIZE = 2 * 1024 * 1024      // 2 MB per hash read
-const LARGE_FILE_THRESHOLD = 10 * 1024 * 1024 // 10 MB — above this use chunked upload
+const CHUNK_SIZE = 5 * 1024 * 1024
+const HASH_READ_SIZE = 2 * 1024 * 1024
+const LARGE_FILE_THRESHOLD = 10 * 1024 * 1024
 const MAX_CONCURRENT = 3
 const MAX_RETRIES = 3
 
@@ -66,6 +66,7 @@ type Stage =
   | { phase: 'uploading_video' }
   | { phase: 'uploading_cover' }
   | { phase: 'publishing' }
+  | { phase: 'success' }
 
 function stageLabel(stage: Stage): string {
   switch (stage.phase) {
@@ -75,6 +76,7 @@ function stageLabel(stage: Stage): string {
     case 'uploading_video':  return '上传视频中'
     case 'uploading_cover':  return '上传封面'
     case 'publishing':       return '发布中'
+    case 'success':         return '发布成功'
   }
 }
 
@@ -86,6 +88,7 @@ function stagePercent(stage: Stage): number {
     case 'uploading_video':  return 50
     case 'uploading_cover':  return 80
     case 'publishing':       return 95
+    case 'success':          return 100
   }
 }
 
@@ -106,7 +109,7 @@ export default function UploadView() {
   const auth = useAuth()
   const navigate = useNavigate()
 
-  const busy = stage.phase !== 'idle'
+  const busy = stage.phase !== 'idle' && stage.phase !== 'success'
 
   /* ---- video picker ---- */
   const handleVideoChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -128,13 +131,11 @@ export default function UploadView() {
 
   /* ---- chunked upload ---- */
   async function doChunkedUpload(file: File) {
-    // 1. compute hash
     setStage({ phase: 'hashing' })
     const fileHash = await computeFileMd5(file)
 
     const totalChunks = Math.ceil(file.size / CHUNK_SIZE)
 
-    // 2. init
     const initRes = await videoApi.initChunkUpload({
       filename: file.name,
       file_size: file.size,
@@ -145,7 +146,6 @@ export default function UploadView() {
 
     const { upload_id, uploaded_chunks } = initRes
 
-    // 3. upload pending chunks with concurrency
     const pendingIndices: number[] = []
     for (let i = 0; i < totalChunks; i++) {
       if (!uploaded_chunks.includes(i)) pendingIndices.push(i)
@@ -175,7 +175,6 @@ export default function UploadView() {
       }
     }
 
-    // concurrent worker pool
     await Promise.all(
       Array.from({ length: Math.min(MAX_CONCURRENT, queue.length) }, async () => {
         while (queue.length > 0) {
@@ -185,7 +184,6 @@ export default function UploadView() {
       }),
     )
 
-    // 4. complete
     const completeRes = await videoApi.completeChunkUpload(upload_id)
     return completeRes.play_url ?? completeRes.url
   }
@@ -220,18 +218,15 @@ export default function UploadView() {
     setErrorMsg('')
 
     try {
-      // upload video (chunked or simple)
       const isLarge = videoFile.size >= LARGE_FILE_THRESHOLD
       const playUrl = isLarge
         ? await doChunkedUpload(videoFile)
         : await doSimpleUpload(videoFile)
 
-      // upload cover
       setStage({ phase: 'uploading_cover' })
       const coverRes = await videoApi.uploadCover(coverFile)
       const coverUrl = coverRes.cover_url ?? coverRes.url
 
-      // publish
       setStage({ phase: 'publishing' })
       await videoApi.publishVideo({
         title: title.trim(),
@@ -241,19 +236,48 @@ export default function UploadView() {
       })
 
       toast.success('发布成功')
-      navigate('/')
+      setStage({ phase: 'success' })
     } catch (err: unknown) {
       const msg = err instanceof ApiError ? err.message : (err instanceof Error ? err.message : '上传失败')
       setErrorMsg(msg)
       toast.error(msg)
-    } finally {
       setStage({ phase: 'idle' })
     }
   }
 
-  /* ---- preview URLs ---- */
+  /* ---- reset for another upload ---- */
+  const handleReset = useCallback(() => {
+    setTitle('')
+    setDescription('')
+    setVideoFile(null)
+    setCoverFile(null)
+    setStage({ phase: 'idle' })
+    setErrorMsg('')
+  }, [])
+
   const videoPreviewUrl = videoFile ? URL.createObjectURL(videoFile) : null
   const coverPreviewUrl = coverFile ? URL.createObjectURL(coverFile) : null
+
+  /* ── Success state ── */
+  if (stage.phase === 'success') {
+    return (
+      <div className={styles.page}>
+        <div className={styles.card}>
+          <div className={styles.success}>
+            <div className={styles.successCircle}>
+              <svg viewBox="0 0 24 24"><polyline points="4 12 10 18 20 6" /></svg>
+            </div>
+            <div className={styles.successTitle}>发布成功</div>
+            <div className={styles.successSub}>你的视频已成功上传，快去 Feed 看看吧</div>
+            <div style={{ display: 'flex', gap: 12 }}>
+              <button className={styles.successBtn} onClick={() => navigate('/')}>去看视频</button>
+              <button className={styles.btn} onClick={handleReset}>继续发布</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className={styles.page}>

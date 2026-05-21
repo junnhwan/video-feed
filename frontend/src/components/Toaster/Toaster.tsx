@@ -7,7 +7,7 @@ export default function Toaster() {
   return (
     <div className={styles.wrap} aria-live="polite">
       {toasts.map((t) => (
-        <div key={t.id} className={`${styles.toast} ${styles[t.type]}`}>
+        <div key={t.id} className={`${styles.toast} ${styles[t.type]} ${t.exiting ? styles.exiting : ''}`}>
           <div className={styles.msg}>{t.message}</div>
           <button className={styles.close} onClick={() => remove(t.id)} aria-label="关闭">×</button>
         </div>

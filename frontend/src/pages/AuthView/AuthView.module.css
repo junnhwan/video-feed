@@ -1,33 +1,146 @@
 .page {
-  max-width: 420px;
-  margin: 60px auto;
-  padding: 0 18px;
+  min-height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(ellipse 80% 60% at 50% 40%, rgba(254, 44, 85, 0.07), transparent),
+    radial-gradient(ellipse 60% 50% at 80% 20%, rgba(43, 161, 255, 0.05), transparent),
+    var(--bg-secondary);
+  padding: 20px;
+  position: relative;
+  overflow: hidden;
+}
+
+.page::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  right: -30%;
+  width: 600px;
+  height: 600px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(254, 44, 85, 0.04), transparent 70%);
+  pointer-events: none;
+}
+
+.page::after {
+  content: '';
+  position: absolute;
+  bottom: -40%;
+  left: -20%;
+  width: 500px;
+  height: 500px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(43, 161, 255, 0.04), transparent 70%);
+  pointer-events: none;
 }
 
 .card {
+  position: relative;
+  width: 100%;
+  max-width: 400px;
   background: var(--bg-primary);
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 32px 28px;
+  border-radius: var(--radius-xl);
+  padding: 36px 28px 28px;
   box-shadow: var(--shadow-lg);
-  animation: fadeUp var(--duration-normal) var(--ease-out) both;
+  animation: fadeUp 0.4s var(--ease-out) both;
 }
 
-.title {
-  font-size: 22px;
-  font-weight: 800;
-  margin-bottom: 24px;
+/* ── Brand header ── */
+
+.brand {
   text-align: center;
-  color: var(--text-primary);
+  margin-bottom: 28px;
 }
+
+.logoIcon {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-md);
+  background: linear-gradient(135deg, var(--accent), #ff6b81);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 12px;
+  box-shadow: 0 4px 16px rgba(254, 44, 85, 0.2);
+}
+
+.logoIcon svg {
+  width: 26px;
+  height: 26px;
+  fill: #ffffff;
+}
+
+.brandName {
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.3px;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.brandSlogan {
+  font-size: 13px;
+  color: var(--text-tertiary);
+}
+
+/* ── Slide toggle for login/register ── */
+
+.toggle {
+  display: flex;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-full);
+  padding: 3px;
+  margin-bottom: 24px;
+  position: relative;
+}
+
+.toggleBtn {
+  flex: 1;
+  padding: 9px 0;
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: var(--radius-full);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: color var(--duration-fast) var(--ease-out);
+  position: relative;
+  z-index: 1;
+}
+
+.toggleBtnActive {
+  color: #ffffff;
+}
+
+.toggleSlider {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: calc(50% - 3px);
+  height: calc(100% - 6px);
+  background: var(--accent);
+  border-radius: var(--radius-full);
+  transition: transform var(--duration-normal) var(--ease-spring);
+  box-shadow: 0 2px 8px rgba(254, 44, 85, 0.2);
+}
+
+.toggleSliderRight {
+  transform: translateX(100%);
+}
+
+/* ── Form ── */
 
 .form {
   display: grid;
   gap: 18px;
+  animation: fadeIn var(--duration-normal) var(--ease-out) both;
 }
 
 .label {
   font-size: 13px;
+  font-weight: 500;
   color: var(--text-secondary);
   display: grid;
   gap: 6px;
@@ -36,10 +149,10 @@
 .input {
   width: 100%;
   background: var(--bg-secondary);
-  border: 1px solid var(--border);
+  border: 1.5px solid var(--border);
   border-radius: var(--radius-md);
   color: var(--text-primary);
-  padding: 11px 12px;
+  padding: 12px 14px;
   font-size: 14px;
   outline: none;
   transition: border-color var(--duration-fast) var(--ease-out),
@@ -52,8 +165,8 @@
 }
 
 .input:focus {
-  border-color: var(--blue);
-  box-shadow: 0 0 0 3px var(--blue-soft);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
   background: var(--bg-primary);
 }
 
@@ -62,8 +175,9 @@
   background: var(--bg-secondary);
   color: var(--text-primary);
   border-radius: var(--radius-md);
-  padding: 11px 14px;
+  padding: 12px 14px;
   font-size: 14px;
+  font-weight: 500;
   cursor: pointer;
   transition: background var(--duration-fast) var(--ease-out),
               box-shadow var(--duration-fast) var(--ease-out);
@@ -84,29 +198,36 @@
 
 .primary {
   border: none;
-  background: var(--accent);
+  background: linear-gradient(135deg, var(--accent), #ff6b81);
   color: #ffffff;
   font-weight: 600;
+  font-size: 15px;
+  padding: 13px;
+  border-radius: var(--radius-md);
+  box-shadow: 0 4px 12px rgba(254, 44, 85, 0.2);
+  transition: box-shadow var(--duration-fast) var(--ease-out),
+              transform var(--duration-fast) var(--ease-spring);
 }
 
 .primary:hover:not(:disabled) {
-  background: var(--accent-hover);
+  box-shadow: 0 6px 20px rgba(254, 44, 85, 0.3);
+  transform: translateY(-1px);
 }
 
 .primary:active:not(:disabled) {
-  background: var(--accent);
-  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.12);
+  transform: translateY(0);
+  box-shadow: 0 2px 8px rgba(254, 44, 85, 0.25);
 }
 
-.switch {
+.footer {
   margin-top: 20px;
   text-align: center;
   font-size: 13px;
-  color: var(--text-secondary);
+  color: var(--text-tertiary);
 }
 
 .linkBtn {
-  color: var(--blue);
+  color: var(--accent);
   font-size: 13px;
   font-weight: 600;
   margin-left: 4px;
@@ -114,9 +235,9 @@
   background: none;
   border: none;
   padding: 0;
-  transition: color var(--duration-fast) var(--ease-out);
+  transition: opacity var(--duration-fast) var(--ease-out);
 }
 
 .linkBtn:hover {
-  color: var(--accent);
+  opacity: 0.75;
 }

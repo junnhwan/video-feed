@@ -30,12 +30,17 @@
     background var(--duration-fast) var(--ease-out),
     border-color var(--duration-fast) var(--ease-out),
     color var(--duration-fast) var(--ease-out),
-    box-shadow var(--duration-fast) var(--ease-out);
+    box-shadow var(--duration-fast) var(--ease-out),
+    transform var(--duration-fast) var(--ease-spring);
 }
 
 .tab:hover {
   background: var(--bg-tertiary);
   border-color: var(--border-strong);
+}
+
+.tab:active {
+  transform: scale(0.96);
 }
 
 .on {
@@ -60,9 +65,10 @@
   min-height: 0;
   overflow-y: auto;
   scroll-snap-type: y mandatory;
-  scroll-behavior: smooth;
   overscroll-behavior: contain;
   scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  will-change: scroll-position;
 }
 
 .scroller::-webkit-scrollbar {
@@ -81,6 +87,98 @@
   color: var(--accent);
 }
 
+/* ── Empty state ── */
+
+.emptyState {
+  height: calc(100% - 60px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: var(--text-tertiary);
+}
+
+.emptyIcon {
+  font-size: 48px;
+  opacity: 0.3;
+  line-height: 1;
+}
+
+.emptyText {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.emptySub {
+  font-size: 13px;
+  color: var(--text-tertiary);
+}
+
+/* ── Skeleton ── */
+
+.skeletonSlide {
+  height: 100%;
+  scroll-snap-align: start;
+  padding: 18px 14px;
+  display: grid;
+  place-items: center;
+}
+
+.skeletonStage {
+  width: min(980px, calc(100vw - 260px));
+  height: calc(100vh - 56px - 52px - 36px);
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  background: linear-gradient(
+    90deg,
+    var(--bg-tertiary) 25%,
+    var(--bg-secondary) 37%,
+    var(--bg-tertiary) 63%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.8s ease-in-out infinite;
+  position: relative;
+}
+
+.skeletonMeta {
+  position: absolute;
+  left: 16px;
+  bottom: 18px;
+  display: grid;
+  gap: 8px;
+}
+
+.skeletonLine {
+  height: 14px;
+  border-radius: 7px;
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.skeletonLineShort {
+  width: 120px;
+}
+
+.skeletonLineMedium {
+  width: 200px;
+}
+
+.skeletonActions {
+  position: absolute;
+  right: 12px;
+  bottom: 18px;
+  display: grid;
+  gap: 12px;
+}
+
+.skeletonAct {
+  width: 70px;
+  height: 58px;
+  border-radius: var(--radius-md);
+  background: rgba(0, 0, 0, 0.04);
+}
+
 /* ── Slide ───────────────────────────────────── */
 
 .slide {
@@ -89,6 +187,9 @@
   padding: 18px 14px;
   display: grid;
   place-items: center;
+  will-change: transform;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
 }
 
 /* ── Video Stage ─────────────────────────────── */
@@ -104,6 +205,9 @@
   box-shadow: var(--shadow-lg);
   cursor: pointer;
   user-select: none;
+  will-change: transform;
+  transform: translateZ(0);
+  contain: layout style paint;
 }
 
 .video {
@@ -197,6 +301,8 @@
   gap: 6px;
   justify-items: center;
   font-size: 12px;
+  position: relative;
+  overflow: hidden;
   transition:
     transform var(--duration-fast) var(--ease-spring),
     background var(--duration-fast) var(--ease-out),
@@ -237,6 +343,41 @@
   font-weight: 500;
 }
 
+/* ── Heart Particles ── */
+
+.particles {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.particle {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  font-size: 12px;
+  line-height: 1;
+  animation: particleBurst 0.6s var(--ease-out) forwards;
+  pointer-events: none;
+}
+
+/* ── Number +1 Pop ── */
+
+.numPop {
+  position: absolute;
+  right: 0;
+  top: -8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent);
+  animation: numPop 0.6s var(--ease-out) forwards;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
 /* ── Hint Chips ──────────────────────────────── */
 
 .hint {
@@ -272,6 +413,26 @@
   border-color: var(--border-strong);
 }
 
+/* ── Load More Indicator ── */
+
+.loadMore {
+  height: 52px;
+  display: grid;
+  place-items: center;
+  color: var(--text-tertiary);
+  font-size: 13px;
+  gap: 6px;
+}
+
+.spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
 /* ── Mobile ──────────────────────────────────── */
 
 @media (max-width: 760px) {
@@ -280,6 +441,12 @@
   }
 
   .stage {
+    width: calc(100vw - 28px);
+    height: calc(100vh - 52px - 52px - 36px);
+    border-radius: var(--radius-lg);
+  }
+
+  .skeletonStage {
     width: calc(100vw - 28px);
     height: calc(100vh - 52px - 52px - 36px);
     border-radius: var(--radius-lg);

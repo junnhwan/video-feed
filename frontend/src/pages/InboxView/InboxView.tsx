@@ -100,7 +100,8 @@ export default function InboxView() {
           </>
         ) : (
           <div className={styles.chatEmpty}>
-            <span>选择联系人开始聊天</span>
+            <span className={styles.chatEmptyIcon}>💬</span>
+            <span className={styles.chatEmptyText}>选择联系人开始聊天</span>
           </div>
         )}
       </div>

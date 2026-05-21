@@ -11,6 +11,22 @@ import UserAvatar from '../../components/UserAvatar/UserAvatar'
 import CommentOverlay from '../../components/CommentOverlay/CommentOverlay'
 import styles from './FeedView.module.css'
 
+const PARTICLE_CHARS = ['❤', '♥', '💕', '✦', '✧']
+function burstParticles() {
+  const particles = []
+  for (let i = 0; i < 8; i++) {
+    const angle = (Math.PI * 2 * i) / 8 + (Math.random() - 0.5) * 0.4
+    const dist = 28 + Math.random() * 20
+    particles.push({
+      id: Date.now() + i,
+      char: PARTICLE_CHARS[Math.floor(Math.random() * PARTICLE_CHARS.length)],
+      tx: `${Math.cos(angle) * dist}px`,
+      ty: `${Math.sin(angle) * dist}px`,
+    })
+  }
+  return particles
+}
+
 export default function FeedView() {
   const auth = useAuth()
   const social = useSocial()
@@ -32,15 +48,35 @@ export default function FeedView() {
   const [commentVideo, setCommentVideo] = useState<FeedVideoItem | null>(null)
   const myAccountId = auth.claims?.account_id ?? 0
 
+  /* ── Heart particles state ── */
+  const [particles, setParticles] = useState<{ id: number; char: string; tx: string; ty: string }[]>([])
+  const [popVideoId, setPopVideoId] = useState(0)
+
   const currentState = getCurrentState()
   const items = currentState.items
-
   const activeItem = items[player.activeIndex] ?? null
-  const visibleRange = useMemo(() => {
-    const idx = player.activeIndex
-    const len = items.length
-    return { start: Math.max(0, idx - 1), end: Math.min(len - 1, idx + 1) }
-  }, [player.activeIndex, items.length])
+
+  /* ── Scroll snap end detection ──
+   * Use a scroll-snap-end / scrollend listener instead of onScroll.
+   * This avoids reacting to mid-scroll positions that cause jittery setState.
+   */
+  const snapTimerRef = useRef(0)
+
+  const onScroll = useCallback(() => {
+    const el = scrollerRef.current
+    if (!el) return
+    const h = el.clientHeight
+    if (!h) return
+
+    // Debounce: only calculate index after scroll settles (~150ms of no scroll events)
+    clearTimeout(snapTimerRef.current)
+    snapTimerRef.current = window.setTimeout(() => {
+      const idx = Math.round(el.scrollTop / h)
+      if (idx !== player.activeIndex) {
+        player.setActiveIndex(idx)
+      }
+    }, 80)
+  }, [player.activeIndex])
 
   // Play active video when index changes
   useEffect(() => {
@@ -72,22 +108,15 @@ export default function FeedView() {
     }
   }, [auth.isLoggedIn, tab])
 
-  // Scroll handler
-  const onScroll = useCallback(() => {
-    const el = scrollerRef.current
-    if (!el) return
-    const h = el.clientHeight
-    if (!h) return
-    const idx = Math.round(el.scrollTop / h)
-    if (idx !== player.activeIndex) player.setActiveIndex(idx)
-  }, [player.activeIndex])
-
   // Double-tap detection
   const lastTapRef = useRef(0)
   function handleStageClick(_e: React.MouseEvent, item: FeedVideoItem) {
     const now = Date.now()
     if (now - lastTapRef.current < 300) {
       toggleLike(item)
+      setParticles(burstParticles())
+      setPopVideoId(item.id)
+      setTimeout(() => { setParticles([]); setPopVideoId(0) }, 700)
       lastTapRef.current = 0
     } else {
       lastTapRef.current = now
@@ -122,6 +151,10 @@ export default function FeedView() {
     return () => window.removeEventListener('keydown', onKeydown)
   }, [player.activeIndex, items.length, activeItem, commentVideo])
 
+  const showSkeleton = currentState.loading && items.length === 0
+  const showError = currentState.error && items.length === 0
+  const showEmpty = !currentState.loading && items.length === 0
+
   return (
     <div className={styles.page}>
       <div className={styles.tabs}>
@@ -136,15 +169,42 @@ export default function FeedView() {
       </div>
 
       <div ref={scrollerRef} className={styles.scroller} onScroll={onScroll}>
-        {currentState.loading && items.length === 0 && <div className={styles.centerHint}>加载中...</div>}
-        {currentState.error && items.length === 0 && <div className={`${styles.centerHint} ${styles.bad}`}>{currentState.error}</div>}
-        {!currentState.loading && items.length === 0 && <div className={styles.centerHint}>没有内容</div>}
+        {showSkeleton && (
+          <div className={styles.skeletonSlide}>
+            <div className={styles.skeletonStage}>
+              <div className={styles.skeletonMeta}>
+                <div className={`${styles.skeletonLine} ${styles.skeletonLineShort}`} />
+                <div className={`${styles.skeletonLine} ${styles.skeletonLineMedium}`} />
+              </div>
+              <div className={styles.skeletonActions}>
+                <div className={styles.skeletonAct} />
+                <div className={styles.skeletonAct} />
+                <div className={styles.skeletonAct} />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showError && (
+          <div className={styles.emptyState}>
+            <span className={styles.emptyIcon}>:(</span>
+            <span className={styles.emptyText}>{currentState.error}</span>
+            <span className={styles.emptySub}>下拉刷新重试</span>
+          </div>
+        )}
+
+        {showEmpty && (
+          <div className={styles.emptyState}>
+            <span className={styles.emptyIcon}>🎬</span>
+            <span className={styles.emptyText}>还没有内容</span>
+            <span className={styles.emptySub}>去发布第一个视频吧</span>
+          </div>
+        )}
 
         {items.map((item, idx) => (
           <section
             key={`${tab}-${item.id}`}
-            className={`${styles.slide} ${idx === player.activeIndex ? styles.active : ''}`}
-            style={{ display: idx >= visibleRange.start && idx <= visibleRange.end ? undefined : 'none' }}
+            className={styles.slide}
           >
             <div className={styles.stage} onClick={(e) => handleStageClick(e, item)}>
               <video
@@ -153,8 +213,9 @@ export default function FeedView() {
                 src={item.play_url}
                 poster={item.cover_url}
                 playsInline
-                preload="metadata"
+                preload={idx <= 1 ? 'auto' : 'metadata'}
                 loop
+                muted
               />
               <div className={styles.grad} />
               <div className={styles.meta}>
@@ -169,6 +230,20 @@ export default function FeedView() {
                 <button className={styles.act} disabled={!!likeBusy[item.id]} onClick={() => toggleLike(item)}>
                   <span className={`${styles.icon} ${item.is_liked ? styles.liked : ''}`}>♥</span>
                   <span className={styles.count}>{item.likes_count}</span>
+                  {popVideoId === item.id && !item.is_liked && <span className={styles.numPop}>+1</span>}
+                  {particles.length > 0 && popVideoId === item.id && (
+                    <span className={styles.particles}>
+                      {particles.map((p) => (
+                        <span
+                          key={p.id}
+                          className={styles.particle}
+                          style={{ '--tx': p.tx, '--ty': p.ty } as React.CSSProperties}
+                        >
+                          {p.char}
+                        </span>
+                      ))}
+                    </span>
+                  )}
                 </button>
                 <button className={styles.act} onClick={() => setCommentVideo(item)}>
                   <span className={styles.icon}>💬</span>
@@ -194,6 +269,12 @@ export default function FeedView() {
             </div>
           </section>
         ))}
+
+        {currentState.loading && items.length > 0 && (
+          <div className={styles.loadMore}>
+            <div className={styles.spinner} />
+          </div>
+        )}
       </div>
 
       {commentVideo && <CommentOverlay video={commentVideo} onClose={() => setCommentVideo(null)} />}

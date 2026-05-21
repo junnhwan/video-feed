@@ -7,7 +7,7 @@
 .card {
   background: var(--bg-primary);
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-xl);
   padding: 32px 28px;
   box-shadow: var(--shadow-lg);
   display: grid;
@@ -45,7 +45,7 @@
   height: 72px;
   border-radius: 50%;
   object-fit: cover;
-  border: 2px solid var(--border);
+  border: 2.5px solid var(--accent);
 }
 
 .avatarFallback {
@@ -58,8 +58,7 @@
   color: #ffffff;
   font-weight: 700;
   font-size: 30px;
-  background: var(--accent);
-  border: 2px solid var(--border);
+  border: 2.5px solid var(--accent);
 }
 
 .avatarBtn {
@@ -69,6 +68,7 @@
   border: none;
   cursor: pointer;
   padding: 0;
+  font-weight: 500;
   transition: color var(--duration-fast) var(--ease-out);
 }
 
@@ -113,7 +113,7 @@
 .input {
   flex: 1;
   background: var(--bg-secondary);
-  border: 1px solid var(--border);
+  border: 1.5px solid var(--border);
   border-radius: var(--radius-md);
   color: var(--text-primary);
   padding: 11px 12px;
@@ -129,15 +129,15 @@
 }
 
 .input:focus {
-  border-color: var(--blue);
-  box-shadow: 0 0 0 3px var(--blue-soft);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
   background: var(--bg-primary);
 }
 
 .textarea {
   width: 100%;
   background: var(--bg-secondary);
-  border: 1px solid var(--border);
+  border: 1.5px solid var(--border);
   border-radius: var(--radius-md);
   color: var(--text-primary);
   padding: 11px 12px;
@@ -155,8 +155,8 @@
 }
 
 .textarea:focus {
-  border-color: var(--blue);
-  box-shadow: 0 0 0 3px var(--blue-soft);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
   background: var(--bg-primary);
 }
 
@@ -190,13 +190,14 @@
 
 .primary {
   border: none;
-  background: var(--accent);
+  background: linear-gradient(135deg, var(--accent), #ff6b81);
   color: #ffffff;
   font-weight: 600;
 }
 
 .primary:hover:not(:disabled) {
-  background: var(--accent-hover);
+  background: linear-gradient(135deg, var(--accent-hover), #ff6b81);
+  box-shadow: 0 2px 8px rgba(254, 44, 85, 0.2);
 }
 
 .danger {

@@ -21,15 +21,11 @@
   border: 1px solid var(--border);
   background: var(--bg-primary);
   box-shadow: var(--shadow-lg);
-  animation: slideInDown var(--duration-normal) var(--ease-out);
-  transition:
-    opacity var(--duration-fast) var(--ease-out),
-    transform var(--duration-fast) var(--ease-out);
+  animation: slideInDown var(--duration-normal) var(--ease-out) both;
 }
 
-.toast[data-exiting] {
-  opacity: 0;
-  transform: translateY(-8px);
+.exiting {
+  animation: slideOutUp 0.25s var(--ease-out) both;
 }
 
 .success {

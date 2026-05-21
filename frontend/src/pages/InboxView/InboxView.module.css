@@ -89,11 +89,23 @@
 
 .chatEmpty {
   flex: 1;
-  display: grid;
-  place-items: center;
-  color: var(--text-tertiary);
-  font-size: 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
   background: var(--bg-secondary);
+  color: var(--text-tertiary);
+}
+
+.chatEmptyIcon {
+  font-size: 40px;
+  opacity: 0.25;
+}
+
+.chatEmptyText {
+  font-size: 14px;
+  color: var(--text-secondary);
 }
 
 /* ── Mobile ── */

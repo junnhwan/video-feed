@@ -6,6 +6,7 @@ export type Toast = {
   id: number
   type: ToastType
   message: string
+  exiting?: boolean
 }
 
 let nextId = 1
@@ -22,12 +23,15 @@ const ToastContext = createContext<ToastContextValue | null>(null)
 
 type Action =
   | { type: 'PUSH'; toast: Toast }
+  | { type: 'EXIT'; id: number }
   | { type: 'REMOVE'; id: number }
 
 function reducer(state: Toast[], action: Action): Toast[] {
   switch (action.type) {
     case 'PUSH':
       return [...state, action.toast]
+    case 'EXIT':
+      return state.map((t) => t.id === action.id ? { ...t, exiting: true } : t)
     case 'REMOVE':
       return state.filter((t) => t.id !== action.id)
   }
@@ -38,18 +42,23 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
   const remove = useCallback((id: number) => dispatch({ type: 'REMOVE', id }), [])
 
+  const exitAndRemove = useCallback((id: number) => {
+    dispatch({ type: 'EXIT', id })
+    setTimeout(() => remove(id), 300)
+  }, [remove])
+
   const push = useCallback((type: ToastType, message: string, ttlMs = 2600) => {
     const id = nextId++
     dispatch({ type: 'PUSH', toast: { id, type, message } })
-    setTimeout(() => remove(id), ttlMs)
-  }, [remove])
+    setTimeout(() => exitAndRemove(id), ttlMs)
+  }, [exitAndRemove])
 
   const success = useCallback((msg: string) => push('success', msg), [push])
   const error = useCallback((msg: string) => push('error', msg, 3600), [push])
   const info = useCallback((msg: string) => push('info', msg), [push])
 
   return (
-    <ToastContext.Provider value={{ toasts, remove, success, error, info }}>
+    <ToastContext.Provider value={{ toasts, remove: exitAndRemove, success, error, info }}>
       {children}
     </ToastContext.Provider>
   )

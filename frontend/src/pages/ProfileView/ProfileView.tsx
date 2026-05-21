@@ -15,6 +15,27 @@ import styles from './ProfileView.module.css'
 type TabKey = 'works' | 'likes'
 type ModalKey = 'none' | 'followers' | 'following'
 
+/* ── Skeleton Component ── */
+function ProfileSkeleton() {
+  return (
+    <div className={styles.skeleton}>
+      <div className={styles.skHeader}>
+        <div className={styles.skAvatar} />
+        <div className={styles.skInfo}>
+          <div className={`${styles.skLine} ${styles.skLineName}`} />
+          <div className={`${styles.skLine} ${styles.skLineBio}`} />
+          <div className={`${styles.skLine} ${styles.skLineStats}`} />
+        </div>
+      </div>
+      <div className={styles.skGrid}>
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div key={i} className={styles.skGridItem} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export default function ProfileView() {
   const { id: routeId } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -22,29 +43,23 @@ export default function ProfileView() {
   const social = useSocial()
   const toast = useToast()
 
-  // Determine target account ID
   const isSelf = !routeId || (auth.claims?.account_id != null && String(auth.claims.account_id) === routeId)
   const accountId = isSelf ? auth.claims!.account_id! : Number(routeId)
 
-  // Profile data
   const [profile, setProfile] = useState<ProfileResponse | null>(null)
   const [loadingProfile, setLoadingProfile] = useState(true)
 
-  // Video tabs
   const [activeTab, setActiveTab] = useState<TabKey>('works')
   const [works, setWorks] = useState<Video[]>([])
   const [likedVideos, setLikedVideos] = useState<Video[]>([])
   const [loadingVideos, setLoadingVideos] = useState(false)
 
-  // Follow state
   const [followBusy, setFollowBusy] = useState(false)
 
-  // Modal state
   const [modal, setModal] = useState<ModalKey>('none')
   const [modalUsers, setModalUsers] = useState<Account[]>([])
   const [modalLoading, setModalLoading] = useState(false)
 
-  // ─── Fetch profile ──────────────────────────────────────
   useEffect(() => {
     let cancelled = false
     setLoadingProfile(true)
@@ -54,7 +69,7 @@ export default function ProfileView() {
         if (!cancelled) setProfile(res)
       })
       .catch((e) => {
-        if (!cancelled) toast.error(e instanceof ApiError ? e.message : 'Failed to load profile')
+        if (!cancelled) toast.error(e instanceof ApiError ? e.message : '加载失败')
       })
       .finally(() => {
         if (!cancelled) setLoadingProfile(false)
@@ -62,7 +77,6 @@ export default function ProfileView() {
     return () => { cancelled = true }
   }, [accountId, toast])
 
-  // ─── Fetch videos ───────────────────────────────────────
   useEffect(() => {
     let cancelled = false
 
@@ -71,10 +85,9 @@ export default function ProfileView() {
       videoApi
         .listByAuthorId(accountId)
         .then((list) => { if (!cancelled) setWorks(list) })
-        .catch((e) => { if (!cancelled) toast.error(e instanceof ApiError ? e.message : 'Failed to load videos') })
+        .catch((e) => { if (!cancelled) toast.error(e instanceof ApiError ? e.message : '加载视频失败') })
         .finally(() => { if (!cancelled) setLoadingVideos(false) })
     } else if (activeTab === 'likes') {
-      // Liked videos only available for self
       if (!isSelf || !auth.isLoggedIn) {
         setLikedVideos([])
         return
@@ -83,14 +96,13 @@ export default function ProfileView() {
       likeApi
         .listMyLikedVideos()
         .then((list) => { if (!cancelled) setLikedVideos(list) })
-        .catch((e) => { if (!cancelled) toast.error(e instanceof ApiError ? e.message : 'Failed to load liked videos') })
+        .catch((e) => { if (!cancelled) toast.error(e instanceof ApiError ? e.message : '加载失败') })
         .finally(() => { if (!cancelled) setLoadingVideos(false) })
     }
 
     return () => { cancelled = true }
   }, [activeTab, accountId, isSelf, auth.isLoggedIn, toast])
 
-  // ─── Follow / Unfollow ──────────────────────────────────
   const handleToggleFollow = useCallback(async () => {
     if (!auth.isLoggedIn) {
       navigate('/account')
@@ -113,7 +125,6 @@ export default function ProfileView() {
     }
   }, [auth.isLoggedIn, followBusy, accountId, social, toast, navigate])
 
-  // ─── Modal open ─────────────────────────────────────────
   const openModal = useCallback(
     async (key: 'followers' | 'following') => {
       setModal(key)
@@ -128,7 +139,7 @@ export default function ProfileView() {
           setModalUsers(res.vloggers)
         }
       } catch (e) {
-        toast.error(e instanceof ApiError ? e.message : 'Failed to load list')
+        toast.error(e instanceof ApiError ? e.message : '加载列表失败')
       } finally {
         setModalLoading(false)
       }
@@ -136,11 +147,10 @@ export default function ProfileView() {
     [accountId, toast],
   )
 
-  // ─── Loading / empty states ─────────────────────────────
   if (loadingProfile) {
     return (
       <div className={styles.page}>
-        <div className={styles.loading}>Loading...</div>
+        <ProfileSkeleton />
       </div>
     )
   }
@@ -148,7 +158,9 @@ export default function ProfileView() {
   if (!profile) {
     return (
       <div className={styles.page}>
-        <div className={styles.loading}>User not found</div>
+        <div className={styles.empty}>
+          用户不存在
+        </div>
       </div>
     )
   }
@@ -216,10 +228,10 @@ export default function ProfileView() {
 
       {/* ─── Video Grid ──────────────────────────────────── */}
       {loadingVideos ? (
-        <div className={styles.gridLoading}>Loading videos...</div>
+        <div className={styles.gridLoading}>加载中...</div>
       ) : videos.length === 0 ? (
         <div className={styles.empty}>
-          {activeTab === 'works' ? 'No videos yet' : 'No liked videos'}
+          {activeTab === 'works' ? '还没有发布作品' : '还没有点赞过视频'}
         </div>
       ) : (
         <div className={styles.grid}>
@@ -231,6 +243,11 @@ export default function ProfileView() {
                 alt={v.title}
                 loading="lazy"
               />
+              <div className={styles.playOverlay}>
+                <div className={styles.playBtn}>
+                  <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                </div>
+              </div>
               <div className={styles.coverOverlay}>
                 <span className={styles.coverTitle}>{v.title}</span>
                 <span className={styles.coverLikes}>&#9829; {v.likes_count}</span>
@@ -252,9 +269,9 @@ export default function ProfileView() {
             </div>
             <div className={styles.modalBody}>
               {modalLoading ? (
-                <div className={styles.modalLoading}>Loading...</div>
+                <div className={styles.modalLoading}>加载中...</div>
               ) : modalUsers.length === 0 ? (
-                <div className={styles.modalEmpty}>No users</div>
+                <div className={styles.modalEmpty}>暂无用户</div>
               ) : (
                 modalUsers.map((u) => (
                   <Link

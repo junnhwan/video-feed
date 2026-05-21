@@ -187,6 +187,8 @@
   box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.12);
 }
 
+/* ── Progress bar with stripe animation ── */
+
 .progressSection {
   margin-top: 8px;
 }
@@ -209,8 +211,30 @@
 .progressFill {
   height: 100%;
   border-radius: var(--radius-full);
-  background: var(--accent);
+  background: linear-gradient(
+    135deg,
+    var(--accent) 0%,
+    #ff6b81 50%,
+    var(--accent) 100%
+  );
+  background-size: 200% 100%;
   transition: width var(--duration-slow) var(--ease-out);
+  position: relative;
+}
+
+.progressFill::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    -45deg,
+    transparent,
+    transparent 8px,
+    rgba(255, 255, 255, 0.15) 8px,
+    rgba(255, 255, 255, 0.15) 16px
+  );
+  background-size: 40px 40px;
+  animation: stripeFlow 0.8s linear infinite;
 }
 
 .errorText {
@@ -218,6 +242,74 @@
   font-size: 13px;
   font-weight: 500;
   margin-top: 8px;
+}
+
+/* ── Success State ── */
+
+.success {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 20px;
+  text-align: center;
+  animation: fadeUp var(--duration-normal) var(--ease-out) both;
+}
+
+.successCircle {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--green);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+  animation: successCircle 0.5s var(--ease-spring) both;
+}
+
+.successCircle svg {
+  width: 32px;
+  height: 32px;
+  stroke: #ffffff;
+  stroke-width: 3;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 30;
+  animation: checkDraw 0.4s 0.2s var(--ease-out) both;
+}
+
+.successTitle {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 6px;
+}
+
+.successSub {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin-bottom: 24px;
+}
+
+.successBtn {
+  border: none;
+  background: var(--accent);
+  color: #ffffff;
+  font-weight: 600;
+  padding: 12px 28px;
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(254, 44, 85, 0.2);
+  transition: box-shadow var(--duration-fast) var(--ease-out),
+              transform var(--duration-fast) var(--ease-spring);
+}
+
+.successBtn:hover {
+  box-shadow: 0 6px 20px rgba(254, 44, 85, 0.3);
+  transform: translateY(-1px);
 }
 
 @media (max-width: 760px) {

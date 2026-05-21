@@ -3,7 +3,27 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <title>Video Feed</title>
+    <title>ShortVideo</title>
+    <style>
+      /* Inline loader – eliminated white flash */
+      #root:empty {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 100vh;
+        background: #f7f8fa;
+      }
+      #root:empty::after {
+        content: '';
+        width: 36px;
+        height: 36px;
+        border: 3px solid rgba(0,0,0,.08);
+        border-top-color: #fe2c55;
+        border-radius: 50%;
+        animation: _bootSpin .7s linear infinite;
+      }
+      @keyframes _bootSpin { to { transform: rotate(360deg) } }
+    </style>
   </head>
   <body>
     <div id="root"></div>

@@ -26,15 +26,17 @@ export function useVideoPlayer() {
     if (!activeItemId) return
     for (const [id, v] of videoMap.current.entries()) {
       if (id === activeItemId) continue
-      v.pause()
+      if (!v.paused) v.pause()
     }
     const video = videoMap.current.get(activeItemId)
     if (!video) return
     video.muted = muted
-    try {
-      await video.play()
-    } catch {
-      /* ignore autoplay errors */
+    if (video.paused) {
+      try {
+        await video.play()
+      } catch {
+        /* ignore autoplay errors */
+      }
     }
   }, [muted])
 
