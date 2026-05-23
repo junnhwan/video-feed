@@ -3,14 +3,15 @@ package account
 import (
 	"context"
 	"errors"
-	"log"
 	"strconv"
 	"strings"
 	"time"
 
 	"video-feed/internal/auth"
 	rediscache "video-feed/internal/middleware/redis"
+	"video-feed/internal/observability"
 
+	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
@@ -145,14 +146,14 @@ func (s *Service) Logout(ctx context.Context, accountID uint) error {
 		cacheCtx, cancel := context.WithTimeout(ctx, 50*time.Millisecond)
 		defer cancel()
 		if err := s.cache.Del(cacheCtx, s.cache.Key("account:%d", accountID)); err != nil {
-			log.Printf("failed to delete account token cache: %v", err)
+			observability.WithContext(ctx).Warn("delete account token cache failed", zap.Error(err))
 		}
 		if err := s.cache.Del(cacheCtx, s.cache.Key("account:%d:refresh", accountID)); err != nil {
-			log.Printf("failed to delete refresh token cache: %v", err)
+			observability.WithContext(ctx).Warn("delete refresh token cache failed", zap.Error(err))
 		}
 		if accountInfo.RefreshToken != "" {
 			if err := s.cache.Del(cacheCtx, s.cache.Key("refresh:%s", accountInfo.RefreshToken)); err != nil {
-				log.Printf("failed to delete refresh lookup cache: %v", err)
+				observability.WithContext(ctx).Warn("delete refresh lookup cache failed", zap.Error(err))
 			}
 		}
 	}
@@ -211,7 +212,7 @@ func (s *Service) cacheToken(ctx context.Context, accountID uint, token string) 
 	cacheCtx, cancel := context.WithTimeout(ctx, 50*time.Millisecond)
 	defer cancel()
 	if err := s.cache.SetBytes(cacheCtx, s.cache.Key("account:%d", accountID), []byte(token), 24*time.Hour); err != nil {
-		log.Printf("failed to set account token cache: %v", err)
+		observability.WithContext(ctx).Warn("set account token cache failed", zap.Error(err))
 	}
 }
 
@@ -222,10 +223,10 @@ func (s *Service) cacheRefreshToken(ctx context.Context, accountID uint, refresh
 	cacheCtx, cancel := context.WithTimeout(ctx, 50*time.Millisecond)
 	defer cancel()
 	if err := s.cache.SetBytes(cacheCtx, s.cache.Key("account:%d:refresh", accountID), []byte(refreshToken), 7*24*time.Hour); err != nil {
-		log.Printf("failed to set account refresh cache: %v", err)
+		observability.WithContext(ctx).Warn("set account refresh cache failed", zap.Error(err))
 	}
 	accountIDBytes := []byte(strconv.FormatUint(uint64(accountID), 10))
 	if err := s.cache.SetBytes(cacheCtx, s.cache.Key("refresh:%s", refreshToken), accountIDBytes, 7*24*time.Hour); err != nil {
-		log.Printf("failed to set refresh lookup cache: %v", err)
+		observability.WithContext(ctx).Warn("set refresh lookup cache failed", zap.Error(err))
 	}
 }

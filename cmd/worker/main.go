@@ -2,10 +2,10 @@ package main
 
 import (
 	"context"
-	"log"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"video-feed/internal/account"
 	"video-feed/internal/config"
@@ -16,24 +16,41 @@ import (
 	"video-feed/internal/social"
 	"video-feed/internal/video"
 	"video-feed/internal/worker"
+
+	"go.uber.org/zap"
 )
 
 func main() {
+	logger := observability.InitLogger("worker")
+	defer observability.Sync()
+
+	shutdownTracer, err := observability.InitTracer("worker")
+	if err != nil {
+		logger.Warn("init tracer", zap.Error(err))
+	}
+	if shutdownTracer != nil {
+		defer func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			defer cancel()
+			_ = shutdownTracer(ctx)
+		}()
+	}
+
 	cfg, err := config.Load(os.Getenv("CONFIG_PATH"))
 	if err != nil {
-		log.Fatalf("load config: %v", err)
+		logger.Fatal("load config", zap.Error(err))
 	}
 	database, err := db.Open(cfg.Database)
 	if err != nil {
-		log.Fatalf("open database: %v", err)
+		logger.Fatal("open database", zap.Error(err))
 	}
 	if err := db.AutoMigrate(database, &account.Account{}, &video.Video{}, &video.OutboxMsg{}, &video.Like{}, &video.Comment{}, &video.Tag{}, &video.VideoTag{}, &social.Social{}, &worker.Notification{}); err != nil {
-		log.Fatalf("auto migrate: %v", err)
+		logger.Fatal("auto migrate", zap.Error(err))
 	}
 
 	cache := rediscache.NewFromConfig(cfg.Redis)
 	if err := cache.Ping(context.Background()); err != nil {
-		log.Printf("redis unavailable, popularity worker disabled: %v", err)
+		logger.Warn("redis unavailable, popularity worker disabled", zap.Error(err))
 		_ = cache.Close()
 		cache = nil
 	}
@@ -43,11 +60,11 @@ func main() {
 
 	broker, err := rabbitmq.NewRabbitMQ(cfg.RabbitMQ)
 	if err != nil {
-		log.Fatalf("connect rabbitmq: %v", err)
+		logger.Fatal("connect rabbitmq", zap.Error(err))
 	}
 	defer broker.Close()
 	if _, err := rabbitmq.NewPublishers(broker); err != nil {
-		log.Fatalf("declare rabbitmq topology: %v", err)
+		logger.Fatal("declare rabbitmq topology", zap.Error(err))
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -55,7 +72,7 @@ func main() {
 
 	pprofServer, err := observability.NewPprofServer("worker", cfg.Observability.Pprof.Enabled, cfg.Observability.Pprof.WorkerAddr)
 	if err != nil {
-		log.Printf("pprof unavailable: %v", err)
+		logger.Warn("pprof unavailable", zap.Error(err))
 	}
 	if pprofServer != nil {
 		defer pprofServer.Close()
@@ -74,14 +91,15 @@ func main() {
 		run(ctx, "timeline", worker.NewTimelineWorker(broker.Ch, cache, rabbitmq.TimelineQueue).Run)
 	}
 
+	logger.Info("worker started, waiting for events")
 	<-ctx.Done()
-	log.Printf("worker shutting down: %v", ctx.Err())
+	logger.Info("worker shutting down", zap.Error(ctx.Err()))
 }
 
 func run(ctx context.Context, name string, fn func(context.Context) error) {
 	go func() {
 		if err := fn(ctx); err != nil && ctx.Err() == nil {
-			log.Printf("%s worker stopped: %v", name, err)
+			observability.L().Error("worker stopped", zap.String("name", name), zap.Error(err))
 		}
 	}()
 }

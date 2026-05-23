@@ -4,13 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"log"
 	"time"
 
 	"video-feed/internal/middleware/rabbitmq"
+	"video-feed/internal/observability"
 	"video-feed/internal/video"
 
 	amqp "github.com/rabbitmq/amqp091-go"
+	"go.uber.org/zap"
 )
 
 type LikeWorker struct {
@@ -52,13 +53,17 @@ func (w *LikeWorker) handleDelivery(ctx context.Context, delivery amqp.Delivery)
 	if err := w.process(ctx, delivery.Body); err != nil {
 		retryCount := rabbitmq.GetRetryCount(delivery)
 		if retryCount >= rabbitmq.MaxRetryCount {
-			log.Printf("like worker: max retries exceeded (%d): %v", retryCount, err)
+			observability.WithContext(ctx).Error("like worker max retries exceeded",
+				zap.Int("retry", retryCount), zap.Error(err))
+			observability.MQConsumeTotal.WithLabelValues(w.queue, "drop").Inc()
 			_ = delivery.Ack(false)
 			return
 		}
+		observability.MQConsumeTotal.WithLabelValues(w.queue, "retry").Inc()
 		_ = delivery.Nack(false, true)
 		return
 	}
+	observability.MQConsumeTotal.WithLabelValues(w.queue, "success").Inc()
 	_ = delivery.Ack(false)
 }
 

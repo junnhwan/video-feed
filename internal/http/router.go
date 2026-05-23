@@ -2,7 +2,6 @@ package http
 
 import (
 	"context"
-	"log"
 	"net/http"
 	"time"
 
@@ -13,12 +12,17 @@ import (
 	"video-feed/internal/middleware/rabbitmq"
 	"video-feed/internal/middleware/ratelimit"
 	rediscache "video-feed/internal/middleware/redis"
+	"video-feed/internal/observability"
 	"video-feed/internal/social"
 	"video-feed/internal/video"
 	"video-feed/internal/worker"
 
 	"github.com/gin-gonic/gin"
 	amqp "github.com/rabbitmq/amqp091-go"
+	swaggerfiles "github.com/swaggo/files"
+	ginswagger "github.com/swaggo/gin-swagger"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
@@ -31,11 +35,14 @@ func NewRouter(database *gorm.DB, cache ...*rediscache.Client) *gin.Engine {
 }
 
 func NewRouterWithPublishers(database *gorm.DB, tokenCache *rediscache.Client, publishers *rabbitmq.Publishers) *gin.Engine {
-	router := gin.Default()
+	router := gin.New()
+	router.Use(otelgin.Middleware(observability.TracerName), observability.GinRecovery(), observability.GinLogger(), observability.GinMetrics())
 	router.Static("/static", "./.run/uploads")
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok"})
 	})
+	router.GET("/metrics", gin.WrapH(observability.MetricsHandler()))
+	router.GET("/swagger/*any", ginswagger.WrapHandler(swaggerfiles.Handler))
 	if database != nil {
 		accountRepo := account.NewRepository(database)
 		accountService := account.NewService(accountRepo, tokenCache)
@@ -240,7 +247,7 @@ func startNotificationWorkers(ch *amqp.Channel, database *gorm.DB, hub *worker.S
 func runNotificationWorker(ctx context.Context, name string, fn func(context.Context) error) {
 	go func() {
 		if err := fn(ctx); err != nil {
-			log.Printf("%s worker stopped: %v", name, err)
+			observability.L().Error("notification worker stopped", zap.String("name", name), zap.Error(err))
 		}
 	}()
 }

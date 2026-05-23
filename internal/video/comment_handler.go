@@ -31,6 +31,16 @@ type getAllCommentsRequest struct {
 	VideoID uint `json:"video_id"`
 }
 
+// PublishComment godoc
+// @Summary      发表评论
+// @Description  通过 MQ 异步落库,失败降级同步写
+// @Tags         comment
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        body  body      publishCommentRequest  true  "评论参数"
+// @Success      200   {object}  Comment
+// @Router       /comment/publish [post]
 func (h *CommentHandler) PublishComment(c *gin.Context) {
 	var req publishCommentRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -60,6 +70,15 @@ func (h *CommentHandler) PublishComment(c *gin.Context) {
 	c.JSON(http.StatusOK, comment)
 }
 
+// DeleteComment godoc
+// @Summary      删除评论
+// @Tags         comment
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        body  body      deleteCommentRequest  true  "评论 ID"
+// @Success      200   {object}  map[string]string
+// @Router       /comment/delete [post]
 func (h *CommentHandler) DeleteComment(c *gin.Context) {
 	var req deleteCommentRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -78,6 +97,14 @@ func (h *CommentHandler) DeleteComment(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "comment deleted successfully"})
 }
 
+// GetAllComments godoc
+// @Summary      获取评论列表
+// @Tags         comment
+// @Accept       json
+// @Produce      json
+// @Param        body  body      getAllCommentsRequest  true  "视频 ID"
+// @Success      200   {array}   Comment
+// @Router       /comment/getAll [post]
 func (h *CommentHandler) GetAllComments(c *gin.Context) {
 	var req getAllCommentsRequest
 	if err := c.ShouldBindJSON(&req); err != nil {

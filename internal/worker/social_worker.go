@@ -4,12 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"log"
 
 	"video-feed/internal/middleware/rabbitmq"
+	"video-feed/internal/observability"
 	"video-feed/internal/social"
 
 	amqp "github.com/rabbitmq/amqp091-go"
+	"go.uber.org/zap"
 )
 
 type SocialWorker struct {
@@ -50,13 +51,17 @@ func (w *SocialWorker) handleDelivery(ctx context.Context, delivery amqp.Deliver
 	if err := w.process(ctx, delivery.Body); err != nil {
 		retryCount := rabbitmq.GetRetryCount(delivery)
 		if retryCount >= rabbitmq.MaxRetryCount {
-			log.Printf("social worker: max retries exceeded (%d): %v", retryCount, err)
+			observability.WithContext(ctx).Error("social worker max retries exceeded",
+				zap.Int("retry", retryCount), zap.Error(err))
+			observability.MQConsumeTotal.WithLabelValues(w.queue, "drop").Inc()
 			_ = delivery.Ack(false)
 			return
 		}
+		observability.MQConsumeTotal.WithLabelValues(w.queue, "retry").Inc()
 		_ = delivery.Nack(false, true)
 		return
 	}
+	observability.MQConsumeTotal.WithLabelValues(w.queue, "success").Inc()
 	_ = delivery.Ack(false)
 }
 

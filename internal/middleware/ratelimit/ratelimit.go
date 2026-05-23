@@ -9,6 +9,7 @@ import (
 
 	authjwt "video-feed/internal/middleware/jwt"
 	rediscache "video-feed/internal/middleware/redis"
+	"video-feed/internal/observability"
 
 	"github.com/gin-gonic/gin"
 )
@@ -33,6 +34,7 @@ func Limit(cache *rediscache.Client, keyPrefix string, maxRequests int64, window
 			return
 		}
 		if count > maxRequests {
+			observability.RateLimitRejectTotal.WithLabelValues(keyPrefix).Inc()
 			c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{"error": "too many requests"})
 			return
 		}

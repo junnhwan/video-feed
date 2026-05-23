@@ -27,6 +27,18 @@ func NewHandler(service *Service) *Handler {
 	return &Handler{service: service}
 }
 
+// Publish godoc
+// @Summary      发布视频
+// @Description  创建视频记录,事务内同写 Outbox 由轮询器投递时间线事件
+// @Tags         video
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        body  body      publishRequest  true  "发布参数"
+// @Success      200   {object}  Video
+// @Failure      400   {object}  map[string]string
+// @Failure      401   {object}  map[string]string
+// @Router       /video/publish [post]
 func (h *Handler) Publish(c *gin.Context) {
 	var req publishRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -60,6 +72,16 @@ func (h *Handler) Publish(c *gin.Context) {
 	c.JSON(http.StatusOK, video)
 }
 
+// UploadVideo godoc
+// @Summary      上传视频文件
+// @Description  multipart/form-data 上传 .mp4,返回 URL
+// @Tags         video
+// @Accept       multipart/form-data
+// @Produce      json
+// @Security     BearerAuth
+// @Param        file  formData  file  true  "视频文件 (.mp4, ≤200MB)"
+// @Success      200   {object}  map[string]string
+// @Router       /video/uploadVideo [post]
 func (h *Handler) UploadVideo(c *gin.Context) {
 	accountID, err := authjwt.GetAccountID(c)
 	if err != nil {
@@ -128,6 +150,18 @@ func (h *Handler) UploadCover(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"url": url, "cover_url": url})
 }
 
+// DeleteVideo godoc
+// @Summary      删除视频
+// @Description  仅作者本人可删除
+// @Tags         video
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        body  body      deleteVideoRequest  true  "视频 ID"
+// @Success      200   {object}  map[string]string
+// @Failure      401   {object}  map[string]string
+// @Failure      404   {object}  map[string]string
+// @Router       /video/delete [post]
 func (h *Handler) DeleteVideo(c *gin.Context) {
 	var req deleteVideoRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -188,6 +222,16 @@ func buildAbsoluteURL(c *gin.Context, urlPath string) string {
 	return fmt.Sprintf("%s://%s%s", scheme, c.Request.Host, urlPath)
 }
 
+// GetDetail godoc
+// @Summary      视频详情
+// @Description  本地缓存 → Redis MGET → MySQL 三级路径,singleflight 合并回源
+// @Tags         video
+// @Accept       json
+// @Produce      json
+// @Param        body  body      getDetailRequest  true  "视频 ID"
+// @Success      200   {object}  Video
+// @Failure      404   {object}  map[string]string
+// @Router       /video/getDetail [post]
 func (h *Handler) GetDetail(c *gin.Context) {
 	var req getDetailRequest
 	if err := c.ShouldBindJSON(&req); err != nil {

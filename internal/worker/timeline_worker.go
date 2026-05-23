@@ -5,15 +5,16 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"time"
 
 	"video-feed/internal/middleware/rabbitmq"
 	rediscache "video-feed/internal/middleware/redis"
+	"video-feed/internal/observability"
 	"video-feed/internal/video"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 	goredis "github.com/redis/go-redis/v9"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
@@ -81,25 +82,30 @@ func (w *TimelineWorker) Run(ctx context.Context) error {
 func (w *TimelineWorker) handleDelivery(ctx context.Context, delivery amqp.Delivery) {
 	var event rabbitmq.TimelineEvent
 	if err := json.Unmarshal(delivery.Body, &event); err != nil {
+		observability.MQConsumeTotal.WithLabelValues(w.queue, "drop").Inc()
 		_ = delivery.Ack(false)
 		return
 	}
 	if err := w.consumer.Process(ctx, event); err != nil {
 		retryCount := rabbitmq.GetRetryCount(delivery)
 		if retryCount >= rabbitmq.MaxRetryCount {
-			log.Printf("timeline worker: max retries exceeded (%d): %v", retryCount, err)
+			observability.WithContext(ctx).Error("timeline worker max retries exceeded",
+				zap.Int("retry", retryCount), zap.Error(err))
+			observability.MQConsumeTotal.WithLabelValues(w.queue, "drop").Inc()
 			_ = delivery.Ack(false)
 			return
 		}
+		observability.MQConsumeTotal.WithLabelValues(w.queue, "retry").Inc()
 		_ = delivery.Nack(false, true)
 		return
 	}
+	observability.MQConsumeTotal.WithLabelValues(w.queue, "success").Inc()
 	_ = delivery.Ack(false)
 }
 
 func StartOutboxPoller(ctx context.Context, database *gorm.DB, publisher TimelinePublisher) {
 	if database == nil || publisher == nil {
-		log.Printf("outbox poller disabled: timeline publisher is not initialized")
+		observability.L().Warn("outbox poller disabled: timeline publisher is not initialized")
 		return
 	}
 	go func() {
@@ -123,16 +129,19 @@ func publishPendingOutbox(ctx context.Context, database *gorm.DB, publisher Time
 		Order("create_time ASC, id ASC").
 		Limit(100).
 		Find(&messages).Error; err != nil {
-		log.Printf("outbox poller: query failed: %v", err)
+		observability.WithContext(ctx).Error("outbox poller query failed", zap.Error(err))
 		return
 	}
+	observability.OutboxPendingGauge.Set(float64(len(messages)))
 	for _, msg := range messages {
 		if err := publisher.PublishVideo(ctx, msg.VideoID, msg.CreateTime); err != nil {
-			log.Printf("outbox poller: publish failed video_id=%d: %v", msg.VideoID, err)
+			observability.WithContext(ctx).Error("outbox poller publish failed",
+				zap.Uint("video_id", msg.VideoID), zap.Error(err))
 			continue
 		}
 		if err := database.WithContext(ctx).Delete(&msg).Error; err != nil {
-			log.Printf("outbox poller: delete failed id=%d: %v", msg.ID, err)
+			observability.WithContext(ctx).Error("outbox poller delete failed",
+				zap.Uint("msg_id", msg.ID), zap.Error(err))
 		}
 	}
 }

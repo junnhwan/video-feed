@@ -1,6 +1,13 @@
 # Local development and learning notes.
-docs/
+/docs/
 cv.md
+cv-521.md
+cv-523.md
+advice-cc.md
+study-notes-cc.md
+conversation-*.txt
+resume/
+*.exe
 bench/results/
 frontend/node_modules/
 frontend/dist/

@@ -24,6 +24,17 @@ func NewHandler(service *Service) *Handler {
 	return &Handler{service: service}
 }
 
+// Register godoc
+// @Summary      用户注册
+// @Description  根据用户名和密码创建新账号
+// @Tags         account
+// @Accept       json
+// @Produce      json
+// @Param        body  body      registerRequest  true  "注册参数"
+// @Success      200   {object}  accountResponse
+// @Failure      400   {object}  map[string]string
+// @Failure      409   {object}  map[string]string  "username taken"
+// @Router       /account/register [post]
 func (h *Handler) Register(c *gin.Context) {
 	var req registerRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -50,6 +61,17 @@ func (h *Handler) Register(c *gin.Context) {
 	c.JSON(http.StatusOK, accountResponse{ID: account.ID, Username: account.Username})
 }
 
+// Login godoc
+// @Summary      用户登录
+// @Description  用户名密码登录,返回 access token 与 refresh token
+// @Tags         account
+// @Accept       json
+// @Produce      json
+// @Param        body  body      loginRequest  true  "登录参数"
+// @Success      200   {object}  loginResponse
+// @Failure      400   {object}  map[string]string
+// @Failure      401   {object}  map[string]string  "invalid credentials"
+// @Router       /account/login [post]
 func (h *Handler) Login(c *gin.Context) {
 	var req loginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {

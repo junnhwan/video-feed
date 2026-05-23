@@ -9,6 +9,7 @@ import (
 	"time"
 
 	rediscache "video-feed/internal/middleware/redis"
+	"video-feed/internal/observability"
 	"video-feed/internal/video"
 
 	localcache "github.com/patrickmn/go-cache"
@@ -187,19 +188,23 @@ func (s *Service) loadVideoEntitiesFromLocal(ids []uint, byID map[uint]*video.Vi
 		value, ok := s.localCache.Get(s.videoEntityCacheKey(id))
 		if !ok {
 			missed = append(missed, id)
+			observability.CacheMissTotal.WithLabelValues("video_entity", "local").Inc()
 			continue
 		}
 		switch cached := value.(type) {
 		case video.Video:
 			item := cached
 			byID[id] = &item
+			observability.CacheHitTotal.WithLabelValues("video_entity", "local").Inc()
 		case *video.Video:
 			if cached != nil {
 				item := *cached
 				byID[id] = &item
+				observability.CacheHitTotal.WithLabelValues("video_entity", "local").Inc()
 			}
 		default:
 			missed = append(missed, id)
+			observability.CacheMissTotal.WithLabelValues("video_entity", "local").Inc()
 		}
 	}
 	return missed
@@ -225,6 +230,7 @@ func (s *Service) loadVideoEntitiesFromRedis(ctx context.Context, ids []uint, by
 		id := ids[index]
 		if raw == nil {
 			missed = append(missed, id)
+			observability.CacheMissTotal.WithLabelValues("video_entity", "redis").Inc()
 			continue
 		}
 		var payload []byte
@@ -235,14 +241,17 @@ func (s *Service) loadVideoEntitiesFromRedis(ctx context.Context, ids []uint, by
 			payload = value
 		default:
 			missed = append(missed, id)
+			observability.CacheMissTotal.WithLabelValues("video_entity", "redis").Inc()
 			continue
 		}
 		var item video.Video
 		if err := json.Unmarshal(payload, &item); err != nil {
 			missed = append(missed, id)
+			observability.CacheMissTotal.WithLabelValues("video_entity", "redis").Inc()
 			continue
 		}
 		byID[id] = &item
+		observability.CacheHitTotal.WithLabelValues("video_entity", "redis").Inc()
 		s.setLocalVideoEntity(&item)
 	}
 	return missed
@@ -487,10 +496,13 @@ func (s *Service) listPopularityFromHotSnapshot(ctx context.Context, limit int, 
 		return ListByPopularityResponse{}, false, nil
 	}
 	if !exists {
+		observability.CacheMissTotal.WithLabelValues("hot_rank", "redis_merge").Inc()
 		if err := s.cache.ZUnionStore(opCtx, dest, keys, "SUM"); err != nil {
 			return ListByPopularityResponse{}, false, nil
 		}
 		_ = s.cache.Expire(opCtx, dest, 2*time.Minute)
+	} else {
+		observability.CacheHitTotal.WithLabelValues("hot_rank", "redis_merge").Inc()
 	}
 
 	start := int64(offset)

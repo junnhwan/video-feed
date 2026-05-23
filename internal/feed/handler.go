@@ -18,6 +18,15 @@ func NewHandler(service *Service) *Handler {
 	return &Handler{service: service}
 }
 
+// ListLatest godoc
+// @Summary      最新视频流
+// @Description  按发布时间倒序的最新 Feed,游标分页(time + id 复合)
+// @Tags         feed
+// @Accept       json
+// @Produce      json
+// @Param        body  body      ListLatestRequest  true  "分页参数"
+// @Success      200   {object}  ListLatestResponse
+// @Router       /feed/listLatest [post]
 func (h *Handler) ListLatest(c *gin.Context) {
 	var req ListLatestRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -34,6 +43,15 @@ func (h *Handler) ListLatest(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
+// ListLikesCount godoc
+// @Summary      点赞榜
+// @Description  按点赞数倒序的视频榜单,复合游标 (likes_count + id) 避免相同点赞数排序漂移
+// @Tags         feed
+// @Accept       json
+// @Produce      json
+// @Param        body  body      ListLikesCountRequest  true  "分页参数"
+// @Success      200   {object}  ListLikesCountResponse
+// @Router       /feed/listLikesCount [post]
 func (h *Handler) ListLikesCount(c *gin.Context) {
 	var req ListLikesCountRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -68,6 +86,17 @@ func (h *Handler) ListLikesCount(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
+// ListByFollowing godoc
+// @Summary      关注流
+// @Description  仅返回当前登录用户关注的作者发布的视频,时间游标分页
+// @Tags         feed
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        body  body      ListByFollowingRequest  true  "分页参数"
+// @Success      200   {object}  ListByFollowingResponse
+// @Failure      401   {object}  map[string]string
+// @Router       /feed/listByFollowing [post]
 func (h *Handler) ListByFollowing(c *gin.Context) {
 	var req ListByFollowingRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -88,6 +117,15 @@ func (h *Handler) ListByFollowing(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
+// ListByPopularity godoc
+// @Summary      热榜
+// @Description  基于 Redis 时间窗口分片 ZSET 的热度榜单,as_of 快照分页
+// @Tags         feed
+// @Accept       json
+// @Produce      json
+// @Param        body  body      ListByPopularityRequest  true  "分页参数"
+// @Success      200   {object}  ListByPopularityResponse
+// @Router       /feed/listByPopularity [post]
 func (h *Handler) ListByPopularity(c *gin.Context) {
 	var req ListByPopularityRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -126,6 +164,15 @@ func (h *Handler) ListByPopularity(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
+// ListByTag godoc
+// @Summary      按标签筛选
+// @Description  根据标签名筛选视频列表
+// @Tags         feed
+// @Accept       json
+// @Produce      json
+// @Param        body  body      object{tag_name=string,limit=int}  true  "标签筛选参数"
+// @Success      200   {object}  map[string]interface{}
+// @Router       /feed/listByTag [post]
 func (h *Handler) ListByTag(c *gin.Context) {
 	var req struct {
 		TagName string `json:"tag_name"`

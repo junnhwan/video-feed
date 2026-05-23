@@ -29,6 +29,16 @@ type vloggersRequest struct {
 	FollowerID uint `json:"follower_id"`
 }
 
+// Follow godoc
+// @Summary      关注用户
+// @Description  通过 MQ 异步落库,失败降级同步写
+// @Tags         social
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        body  body      followRequest  true  "目标用户 ID"
+// @Success      200   {object}  map[string]string
+// @Router       /social/follow [post]
 func (h *Handler) Follow(c *gin.Context) {
 	followerID, vloggerID, ok := h.bindRelation(c)
 	if !ok {
@@ -41,6 +51,15 @@ func (h *Handler) Follow(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "followed"})
 }
 
+// Unfollow godoc
+// @Summary      取消关注
+// @Tags         social
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        body  body      followRequest  true  "目标用户 ID"
+// @Success      200   {object}  map[string]string
+// @Router       /social/unfollow [post]
 func (h *Handler) Unfollow(c *gin.Context) {
 	followerID, vloggerID, ok := h.bindRelation(c)
 	if !ok {

@@ -14,7 +14,7 @@
 - 异步处理：RabbitMQ 承载点赞、评论、关注、热度、通知、时间线等事件，Worker 独立消费。
 - 一致性补偿：视频发布后通过 Outbox 投递 Feed 时间线事件，降低发布成功但时间线遗漏的风险。
 - 通知与消息：SSE 实时通知、通知列表/已读/未读数、站内私信发送与会话查询。
-- 可观测性：API 与 Worker 支持独立 pprof 开关。
+- 可观测性：Zap 结构化日志（trace_id 自动注入）、OpenTelemetry 全链路追踪、Prometheus 指标暴露、Swagger 接口文档、API 与 Worker 独立 pprof 开关。
 
 ## 技术栈
 
@@ -23,6 +23,7 @@
 - 缓存与状态：Redis
 - 消息队列：RabbitMQ
 - 鉴权：JWT
+- 可观测性：Zap, OpenTelemetry, Prometheus, Swagger (swaggo)
 - 测试依赖：miniredis, SQLite test driver
 - 部署构建：Docker multi-stage build
 
@@ -271,6 +272,8 @@ go run ./cmd/benchrun -config configs/config.yaml -manifest $seed.FullName -requ
 主要路由按业务域划分：
 
 - `GET /health`
+- `GET /metrics` — Prometheus 指标暴露端点
+- `GET /swagger/index.html` — Swagger UI 交互式接口文档
 - `/account`: 注册、登录、刷新、退出、资料与用户查询
 - `/video`: 发布、删除、上传、详情、作者视频、分片上传
 - `/feed`: 最新流、点赞榜、热榜、标签 Feed、关注流
@@ -280,9 +283,40 @@ go run ./cmd/benchrun -config configs/config.yaml -manifest $seed.FullName -requ
 - `/message`: 私信发送与列表
 - `/notification`: SSE 通知流、通知列表、已读、未读数
 
+## 可观测性
+
+启动 API 后,以下端点直接可用,无需额外配置:
+
+- **`GET /metrics`** — Prometheus 文本格式指标。自定义指标:
+  - `http_requests_total{method,path,status}` / `http_request_duration_seconds{method,path}` — 接口流量与延迟
+  - `cache_hit_total{component,layer}` / `cache_miss_total{component,layer}` — 视频实体本地/Redis 缓存命中率、热榜聚合命中率
+  - `mq_publish_total{exchange,routing_key,result}` / `mq_consume_total{queue,result}` — MQ 投递与消费状态(success/error/retry/drop)
+  - `rate_limit_reject_total{key_prefix}` — Lua 限流拒绝计数
+  - `outbox_pending_messages` — Outbox 待投递消息数
+- **`GET /swagger/index.html`** — Swagger UI;原始规范在 `/swagger/doc.json`
+- **结构化日志** — Zap JSON 输出到 stdout,每条请求日志自动包含 `trace_id` 字段
+- **链路追踪** — OpenTelemetry 默认 10% 采样,span 通过 `stdouttrace` 打到 stderr;接入 Jaeger/OTel Collector 只需替换 `internal/observability/otel.go` 的 exporter
+- **pprof** — 开关在 `configs/*.yaml` 的 `observability.pprof`,API 与 Worker 各自独立端口
+
+### 重新生成 Swagger 文档
+
+修改 handler 注释后执行:
+
+```sh
+go install github.com/swaggo/swag/cmd/swag@latest
+swag init -g cmd/server/main.go -o internal/docs --parseDependency --parseInternal
+```
+
+### 端到端验证脚本
+
+```sh
+go run ./cmd/verify_observability   # 检查 /metrics, /swagger/doc.json, /swagger/index.html
+go run ./cmd/verify_trace           # 触发 30 次请求,确认 trace span dump 到 stderr
+```
+
 ## 后续优化方向
 
 - 增加端到端接口测试和压测脚本，补充 Feed 延迟、缓存命中率和数据库查询次数等可复现指标。
-- 增加 OpenAPI 文档或 Postman 集合，降低接口联调成本。
 - 对上传文件存储增加对象存储适配层，便于从本地目录切换到云存储。
-- 补充结构化日志和链路追踪，提升异步事件排障能力。
+- 接入 OTLP/Jaeger exporter 替换默认 stdouttrace,生产化链路追踪。
+- 提供 Grafana 仪表盘 JSON,把 `/metrics` 暴露的指标可视化。

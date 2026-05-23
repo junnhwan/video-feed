@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"video-feed/internal/config"
+	"video-feed/internal/observability"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 )
@@ -75,14 +76,21 @@ func (r *RabbitMQ) PublishJSON(ctx context.Context, exchange string, routingKey 
 	}
 	body, err := json.Marshal(payload)
 	if err != nil {
+		observability.MQPublishTotal.WithLabelValues(exchange, routingKey, "marshal_error").Inc()
 		return err
 	}
-	return r.Ch.PublishWithContext(ctx, exchange, routingKey, false, false, amqp.Publishing{
+	err = r.Ch.PublishWithContext(ctx, exchange, routingKey, false, false, amqp.Publishing{
 		ContentType:  "application/json",
 		DeliveryMode: amqp.Persistent,
 		Timestamp:    time.Now().UTC(),
 		Body:         body,
 	})
+	result := "success"
+	if err != nil {
+		result = "error"
+	}
+	observability.MQPublishTotal.WithLabelValues(exchange, routingKey, result).Inc()
+	return err
 }
 
 func newEventID(size int) (string, error) {

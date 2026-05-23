@@ -21,6 +21,16 @@ type likeRequest struct {
 	VideoID uint `json:"video_id"`
 }
 
+// Like godoc
+// @Summary      点赞视频
+// @Description  通过 RabbitMQ 异步更新计数和热度,失败按通道独立降级到同步写
+// @Tags         like
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        body  body      likeRequest  true  "视频 ID"
+// @Success      200   {object}  map[string]string
+// @Router       /like/like [post]
 func (h *LikeHandler) Like(c *gin.Context) {
 	videoID, ok := bindVideoID(c)
 	if !ok {
@@ -38,6 +48,15 @@ func (h *LikeHandler) Like(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "like success"})
 }
 
+// Unlike godoc
+// @Summary      取消点赞
+// @Tags         like
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        body  body      likeRequest  true  "视频 ID"
+// @Success      200   {object}  map[string]string
+// @Router       /like/unlike [post]
 func (h *LikeHandler) Unlike(c *gin.Context) {
 	videoID, ok := bindVideoID(c)
 	if !ok {

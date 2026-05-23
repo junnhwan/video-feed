@@ -1,0 +1,753 @@
+basePath: /
+definitions:
+  internal_account.accountResponse:
+    properties:
+      avatar_url:
+        type: string
+      bio:
+        type: string
+      id:
+        type: integer
+      username:
+        type: string
+    type: object
+  internal_account.loginRequest:
+    properties:
+      password:
+        type: string
+      username:
+        type: string
+    type: object
+  internal_account.loginResponse:
+    properties:
+      account_id:
+        type: integer
+      refresh_token:
+        type: string
+      token:
+        type: string
+      username:
+        type: string
+    type: object
+  internal_account.registerRequest:
+    properties:
+      password:
+        type: string
+      username:
+        type: string
+    type: object
+  internal_feed.FeedAuthor:
+    properties:
+      id:
+        type: integer
+      username:
+        type: string
+    type: object
+  internal_feed.FeedVideoItem:
+    properties:
+      author:
+        $ref: '#/definitions/internal_feed.FeedAuthor'
+      cover_url:
+        type: string
+      create_time:
+        type: integer
+      description:
+        type: string
+      id:
+        type: integer
+      is_liked:
+        type: boolean
+      likes_count:
+        type: integer
+      play_url:
+        type: string
+      title:
+        type: string
+    type: object
+  internal_feed.ListByFollowingRequest:
+    properties:
+      latest_time:
+        type: integer
+      limit:
+        type: integer
+    type: object
+  internal_feed.ListByFollowingResponse:
+    properties:
+      has_more:
+        type: boolean
+      next_time:
+        type: integer
+      video_list:
+        items:
+          $ref: '#/definitions/internal_feed.FeedVideoItem'
+        type: array
+    type: object
+  internal_feed.ListByPopularityRequest:
+    properties:
+      as_of:
+        type: integer
+      latest_before:
+        type: string
+      latest_id_before:
+        type: integer
+      latest_popularity:
+        type: integer
+      limit:
+        type: integer
+      offset:
+        type: integer
+    type: object
+  internal_feed.ListByPopularityResponse:
+    properties:
+      as_of:
+        type: integer
+      has_more:
+        type: boolean
+      next_latest_before:
+        type: string
+      next_latest_id_before:
+        type: integer
+      next_latest_popularity:
+        type: integer
+      next_offset:
+        type: integer
+      video_list:
+        items:
+          $ref: '#/definitions/internal_feed.FeedVideoItem'
+        type: array
+    type: object
+  internal_feed.ListLatestRequest:
+    properties:
+      latest_time:
+        type: integer
+      limit:
+        type: integer
+    type: object
+  internal_feed.ListLatestResponse:
+    properties:
+      has_more:
+        type: boolean
+      next_time:
+        type: integer
+      video_list:
+        items:
+          $ref: '#/definitions/internal_feed.FeedVideoItem'
+        type: array
+    type: object
+  internal_feed.ListLikesCountRequest:
+    properties:
+      id_before:
+        type: integer
+      likes_count_before:
+        type: integer
+      limit:
+        type: integer
+    type: object
+  internal_feed.ListLikesCountResponse:
+    properties:
+      has_more:
+        type: boolean
+      next_id_before:
+        type: integer
+      next_likes_count_before:
+        type: integer
+      video_list:
+        items:
+          $ref: '#/definitions/internal_feed.FeedVideoItem'
+        type: array
+    type: object
+  internal_social.followRequest:
+    properties:
+      vlogger_id:
+        type: integer
+    type: object
+  internal_video.Comment:
+    properties:
+      author_id:
+        type: integer
+      content:
+        type: string
+      created_at:
+        type: string
+      id:
+        type: integer
+      username:
+        type: string
+      video_id:
+        type: integer
+    type: object
+  internal_video.Video:
+    properties:
+      author_id:
+        type: integer
+      cover_url:
+        type: string
+      create_time:
+        type: string
+      description:
+        type: string
+      id:
+        type: integer
+      likes_count:
+        type: integer
+      play_url:
+        type: string
+      popularity:
+        type: integer
+      title:
+        type: string
+      updated_at:
+        type: string
+      username:
+        type: string
+    type: object
+  internal_video.deleteCommentRequest:
+    properties:
+      comment_id:
+        type: integer
+    type: object
+  internal_video.deleteVideoRequest:
+    properties:
+      id:
+        type: integer
+    type: object
+  internal_video.getAllCommentsRequest:
+    properties:
+      video_id:
+        type: integer
+    type: object
+  internal_video.getDetailRequest:
+    properties:
+      id:
+        type: integer
+    type: object
+  internal_video.likeRequest:
+    properties:
+      video_id:
+        type: integer
+    type: object
+  internal_video.publishCommentRequest:
+    properties:
+      content:
+        type: string
+      video_id:
+        type: integer
+    type: object
+  internal_video.publishRequest:
+    properties:
+      cover_url:
+        type: string
+      description:
+        type: string
+      play_url:
+        type: string
+      title:
+        type: string
+    type: object
+host: 127.0.0.1:8080
+info:
+  contact: {}
+  description: 短视频社区后端 API:账号、视频、Feed、互动、通知。
+  title: Video Feed API
+  version: "1.0"
+paths:
+  /account/login:
+    post:
+      consumes:
+      - application/json
+      description: 用户名密码登录,返回 access token 与 refresh token
+      parameters:
+      - description: 登录参数
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_account.loginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_account.loginResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: invalid credentials
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: 用户登录
+      tags:
+      - account
+  /account/register:
+    post:
+      consumes:
+      - application/json
+      description: 根据用户名和密码创建新账号
+      parameters:
+      - description: 注册参数
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_account.registerRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_account.accountResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: username taken
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: 用户注册
+      tags:
+      - account
+  /comment/delete:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 评论 ID
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_video.deleteCommentRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 删除评论
+      tags:
+      - comment
+  /comment/getAll:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 视频 ID
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_video.getAllCommentsRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/internal_video.Comment'
+            type: array
+      summary: 获取评论列表
+      tags:
+      - comment
+  /comment/publish:
+    post:
+      consumes:
+      - application/json
+      description: 通过 MQ 异步落库,失败降级同步写
+      parameters:
+      - description: 评论参数
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_video.publishCommentRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_video.Comment'
+      security:
+      - BearerAuth: []
+      summary: 发表评论
+      tags:
+      - comment
+  /feed/listByFollowing:
+    post:
+      consumes:
+      - application/json
+      description: 仅返回当前登录用户关注的作者发布的视频,时间游标分页
+      parameters:
+      - description: 分页参数
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_feed.ListByFollowingRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_feed.ListByFollowingResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 关注流
+      tags:
+      - feed
+  /feed/listByPopularity:
+    post:
+      consumes:
+      - application/json
+      description: 基于 Redis 时间窗口分片 ZSET 的热度榜单,as_of 快照分页
+      parameters:
+      - description: 分页参数
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_feed.ListByPopularityRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_feed.ListByPopularityResponse'
+      summary: 热榜
+      tags:
+      - feed
+  /feed/listByTag:
+    post:
+      consumes:
+      - application/json
+      description: 根据标签名筛选视频列表
+      parameters:
+      - description: 标签筛选参数
+        in: body
+        name: body
+        required: true
+        schema:
+          properties:
+            limit:
+              type: integer
+            tag_name:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: 按标签筛选
+      tags:
+      - feed
+  /feed/listLatest:
+    post:
+      consumes:
+      - application/json
+      description: 按发布时间倒序的最新 Feed,游标分页(time + id 复合)
+      parameters:
+      - description: 分页参数
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_feed.ListLatestRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_feed.ListLatestResponse'
+      summary: 最新视频流
+      tags:
+      - feed
+  /feed/listLikesCount:
+    post:
+      consumes:
+      - application/json
+      description: 按点赞数倒序的视频榜单,复合游标 (likes_count + id) 避免相同点赞数排序漂移
+      parameters:
+      - description: 分页参数
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_feed.ListLikesCountRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_feed.ListLikesCountResponse'
+      summary: 点赞榜
+      tags:
+      - feed
+  /like/like:
+    post:
+      consumes:
+      - application/json
+      description: 通过 RabbitMQ 异步更新计数和热度,失败按通道独立降级到同步写
+      parameters:
+      - description: 视频 ID
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_video.likeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 点赞视频
+      tags:
+      - like
+  /like/unlike:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 视频 ID
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_video.likeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 取消点赞
+      tags:
+      - like
+  /social/follow:
+    post:
+      consumes:
+      - application/json
+      description: 通过 MQ 异步落库,失败降级同步写
+      parameters:
+      - description: 目标用户 ID
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_social.followRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 关注用户
+      tags:
+      - social
+  /social/unfollow:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 目标用户 ID
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_social.followRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 取消关注
+      tags:
+      - social
+  /video/delete:
+    post:
+      consumes:
+      - application/json
+      description: 仅作者本人可删除
+      parameters:
+      - description: 视频 ID
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_video.deleteVideoRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 删除视频
+      tags:
+      - video
+  /video/getDetail:
+    post:
+      consumes:
+      - application/json
+      description: 本地缓存 → Redis MGET → MySQL 三级路径,singleflight 合并回源
+      parameters:
+      - description: 视频 ID
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_video.getDetailRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_video.Video'
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: 视频详情
+      tags:
+      - video
+  /video/publish:
+    post:
+      consumes:
+      - application/json
+      description: 创建视频记录,事务内同写 Outbox 由轮询器投递时间线事件
+      parameters:
+      - description: 发布参数
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_video.publishRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_video.Video'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 发布视频
+      tags:
+      - video
+  /video/uploadVideo:
+    post:
+      consumes:
+      - multipart/form-data
+      description: multipart/form-data 上传 .mp4,返回 URL
+      parameters:
+      - description: 视频文件 (.mp4, ≤200MB)
+        in: formData
+        name: file
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 上传视频文件
+      tags:
+      - video
+securityDefinitions:
+  BearerAuth:
+    description: Bearer JWT token.
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"
