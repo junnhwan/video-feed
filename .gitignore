@@ -1,5 +1,6 @@
 # Local development and learning notes.
-/docs/
+/docs/*
+!/docs/screenshots/
 cv.md
 cv-521.md
 cv-523.md
@@ -11,3 +12,5 @@ resume/
 bench/results/
 frontend/node_modules/
 frontend/dist/
+docker-compose.override.yml
+.run/
