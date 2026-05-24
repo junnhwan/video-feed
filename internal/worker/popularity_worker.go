@@ -15,13 +15,14 @@ import (
 )
 
 type PopularityWorker struct {
-	ch    *amqp.Channel
-	cache *rediscache.Client
-	queue string
+	ch     *amqp.Channel
+	cache  *rediscache.Client
+	videos *video.Repository
+	queue  string
 }
 
-func NewPopularityWorker(ch *amqp.Channel, cache *rediscache.Client, queue string) *PopularityWorker {
-	return &PopularityWorker{ch: ch, cache: cache, queue: queue}
+func NewPopularityWorker(ch *amqp.Channel, cache *rediscache.Client, videos *video.Repository, queue string) *PopularityWorker {
+	return &PopularityWorker{ch: ch, cache: cache, videos: videos, queue: queue}
 }
 
 func (w *PopularityWorker) Run(ctx context.Context) error {
@@ -75,5 +76,6 @@ func (w *PopularityWorker) process(ctx context.Context, body []byte) error {
 		return nil
 	}
 	video.UpdatePopularityCache(ctx, w.cache, event.VideoID, event.Change)
+	video.RefreshEntityCache(ctx, w.cache, w.videos, event.VideoID)
 	return nil
 }

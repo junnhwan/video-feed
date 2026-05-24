@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"video-feed/internal/cache/hotkey"
 	rediscache "video-feed/internal/middleware/redis"
 	"video-feed/internal/observability"
 	"video-feed/internal/video"
@@ -22,17 +23,19 @@ type Service struct {
 	likeRepo       *video.LikeRepository
 	cache          *rediscache.Client
 	localCache     *localcache.Cache
+	hotKey         *hotkey.Detector
 	entityCacheTTL time.Duration
 	followingTTL   time.Duration
 	requestGroup   singleflight.Group
 }
 
-func NewService(repo *Repository, likeRepo *video.LikeRepository, cache *rediscache.Client) *Service {
+func NewService(repo *Repository, likeRepo *video.LikeRepository, cache *rediscache.Client, hotKey *hotkey.Detector) *Service {
 	return &Service{
 		repo:           repo,
 		likeRepo:       likeRepo,
 		cache:          cache,
 		localCache:     localcache.New(3*time.Second, 5*time.Second),
+		hotKey:         hotKey,
 		entityCacheTTL: time.Hour,
 		followingTTL:   24 * time.Hour,
 	}
@@ -196,11 +199,13 @@ func (s *Service) loadVideoEntitiesFromLocal(ids []uint, byID map[uint]*video.Vi
 			item := cached
 			byID[id] = &item
 			observability.CacheHitTotal.WithLabelValues("video_entity", "local").Inc()
+			s.recordHotKey(id)
 		case *video.Video:
 			if cached != nil {
 				item := *cached
 				byID[id] = &item
 				observability.CacheHitTotal.WithLabelValues("video_entity", "local").Inc()
+				s.recordHotKey(id)
 			}
 		default:
 			missed = append(missed, id)
@@ -253,6 +258,7 @@ func (s *Service) loadVideoEntitiesFromRedis(ctx context.Context, ids []uint, by
 		byID[id] = &item
 		observability.CacheHitTotal.WithLabelValues("video_entity", "redis").Inc()
 		s.setLocalVideoEntity(&item)
+		s.recordHotKey(id)
 	}
 	return missed
 }
@@ -295,9 +301,13 @@ func (s *Service) setVideoEntityCaches(ctx context.Context, item *video.Video) {
 	if err != nil {
 		return
 	}
+	ttl := s.entityCacheTTL
+	if s.hotKey != nil {
+		ttl = s.hotKey.ExtendTTL(s.entityCacheTTL, s.videoEntityCacheKey(item.ID))
+	}
 	opCtx, cancel := context.WithTimeout(ctx, 50*time.Millisecond)
 	defer cancel()
-	_ = s.cache.SetBytes(opCtx, s.videoEntityCacheKey(item.ID), payload, s.entityCacheTTL)
+	_ = s.cache.SetBytes(opCtx, s.videoEntityCacheKey(item.ID), payload, ttl)
 }
 
 func (s *Service) setLocalVideoEntity(item *video.Video) {
@@ -305,6 +315,13 @@ func (s *Service) setLocalVideoEntity(item *video.Video) {
 		return
 	}
 	s.localCache.Set(s.videoEntityCacheKey(item.ID), *item, localcache.DefaultExpiration)
+}
+
+func (s *Service) recordHotKey(videoID uint) {
+	if s.hotKey == nil {
+		return
+	}
+	s.hotKey.Record(s.videoEntityCacheKey(videoID))
 }
 
 func (s *Service) videoEntityCacheKey(id uint) string {

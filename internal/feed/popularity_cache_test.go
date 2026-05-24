@@ -93,7 +93,7 @@ func newRedisFeedService(t *testing.T) (*Service, *gorm.DB, *rediscache.Client) 
 		t.Fatalf("migrate models: %v", err)
 	}
 	cache, _ := newFeedRedisClient(t)
-	return NewService(NewRepository(database), video.NewLikeRepository(database), cache), database, cache
+	return NewService(NewRepository(database), video.NewLikeRepository(database), cache, nil), database, cache
 }
 
 func newFeedRedisClient(t *testing.T) (*rediscache.Client, *miniredis.Miniredis) {

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"video-feed/internal/account"
+	"video-feed/internal/cache/hotkey"
 	"video-feed/internal/feed"
 	"video-feed/internal/message"
 	authjwt "video-feed/internal/middleware/jwt"
@@ -188,7 +189,9 @@ func NewRouterWithPublishers(database *gorm.DB, tokenCache *rediscache.Client, p
 		})
 
 		feedRepo := feed.NewRepository(database)
-		feedService := feed.NewService(feedRepo, likeRepo, tokenCache)
+		hotKeyDetector := hotkey.NewDetector(hotkey.DefaultConfig())
+		go hotKeyDetector.StartRotation(context.Background())
+		feedService := feed.NewService(feedRepo, likeRepo, tokenCache, hotKeyDetector)
 		feedHandler := feed.NewHandler(feedService)
 		feedGroup := router.Group("/feed")
 		feedGroup.Use(authjwt.SoftJWTAuth(accountRepo, tokenCache))

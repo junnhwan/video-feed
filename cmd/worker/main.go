@@ -83,11 +83,11 @@ func main() {
 	commentRepo := video.NewCommentRepository(database)
 	socialRepo := social.NewRepository(database)
 
-	run(ctx, "like", worker.NewLikeWorker(broker.Ch, likeRepo, videoRepo, rabbitmq.LikeQueue).Run)
+	run(ctx, "like", worker.NewLikeWorker(broker.Ch, likeRepo, videoRepo, cache, rabbitmq.LikeQueue).Run)
 	run(ctx, "comment", worker.NewCommentWorker(broker.Ch, commentRepo, videoRepo, rabbitmq.CommentQueue).Run)
 	run(ctx, "social", worker.NewSocialWorker(broker.Ch, socialRepo, rabbitmq.SocialQueue).Run)
 	if cache != nil {
-		run(ctx, "popularity", worker.NewPopularityWorker(broker.Ch, cache, rabbitmq.PopularityQueue).Run)
+		run(ctx, "popularity", worker.NewPopularityWorker(broker.Ch, cache, videoRepo, rabbitmq.PopularityQueue).Run)
 		run(ctx, "timeline", worker.NewTimelineWorker(broker.Ch, cache, rabbitmq.TimelineQueue).Run)
 	}
 

@@ -26,7 +26,7 @@ func newTestService(t *testing.T) (*Service, *gorm.DB) {
 	if err := database.AutoMigrate(&video.Video{}, &video.OutboxMsg{}, &video.Like{}, &social.Social{}); err != nil {
 		t.Fatalf("migrate models: %v", err)
 	}
-	return NewService(NewRepository(database), video.NewLikeRepository(database), nil), database
+	return NewService(NewRepository(database), video.NewLikeRepository(database), nil, nil), database
 }
 
 func createVideo(t *testing.T, db *gorm.DB, v video.Video) video.Video {

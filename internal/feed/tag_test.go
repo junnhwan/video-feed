@@ -39,7 +39,7 @@ func TestListByTagReturnsTaggedVideos(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("publish untagged: %v", err)
 	}
-	service := NewService(NewRepository(db), video.NewLikeRepository(db), nil)
+	service := NewService(NewRepository(db), video.NewLikeRepository(db), nil, nil)
 
 	items, err := service.ListByTag(context.Background(), "Go", 10, 0)
 

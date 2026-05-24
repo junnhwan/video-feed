@@ -73,7 +73,7 @@ func newLikeWorkerForTest(t *testing.T) (*LikeWorker, *gorm.DB, video.Video) {
 	if err := db.Create(&seed).Error; err != nil {
 		t.Fatalf("create video: %v", err)
 	}
-	return NewLikeWorker(nil, video.NewLikeRepository(db), video.NewRepository(db), rabbitmq.LikeQueue), db, seed
+	return NewLikeWorker(nil, video.NewLikeRepository(db), video.NewRepository(db), nil, rabbitmq.LikeQueue), db, seed
 }
 
 func mustJSON(t *testing.T, value any) []byte {

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"video-feed/internal/middleware/rabbitmq"
+	rediscache "video-feed/internal/middleware/redis"
 	"video-feed/internal/observability"
 	"video-feed/internal/video"
 
@@ -18,11 +19,12 @@ type LikeWorker struct {
 	ch     *amqp.Channel
 	likes  *video.LikeRepository
 	videos *video.Repository
+	cache  *rediscache.Client
 	queue  string
 }
 
-func NewLikeWorker(ch *amqp.Channel, likes *video.LikeRepository, videos *video.Repository, queue string) *LikeWorker {
-	return &LikeWorker{ch: ch, likes: likes, videos: videos, queue: queue}
+func NewLikeWorker(ch *amqp.Channel, likes *video.LikeRepository, videos *video.Repository, cache *rediscache.Client, queue string) *LikeWorker {
+	return &LikeWorker{ch: ch, likes: likes, videos: videos, cache: cache, queue: queue}
 }
 
 func (w *LikeWorker) Run(ctx context.Context) error {
@@ -101,7 +103,11 @@ func (w *LikeWorker) applyLike(ctx context.Context, userID uint, videoID uint) e
 	if err := w.videos.ChangeLikesCount(ctx, videoID, 1); err != nil {
 		return err
 	}
-	return w.videos.ChangePopularity(ctx, videoID, 1)
+	if err := w.videos.ChangePopularity(ctx, videoID, 1); err != nil {
+		return err
+	}
+	video.RefreshEntityCache(ctx, w.cache, w.videos, videoID)
+	return nil
 }
 
 func (w *LikeWorker) applyUnlike(ctx context.Context, userID uint, videoID uint) error {
@@ -116,5 +122,9 @@ func (w *LikeWorker) applyUnlike(ctx context.Context, userID uint, videoID uint)
 	if err := w.videos.ChangeLikesCount(ctx, videoID, -1); err != nil {
 		return err
 	}
-	return w.videos.ChangePopularity(ctx, videoID, -1)
+	if err := w.videos.ChangePopularity(ctx, videoID, -1); err != nil {
+		return err
+	}
+	video.RefreshEntityCache(ctx, w.cache, w.videos, videoID)
+	return nil
 }
