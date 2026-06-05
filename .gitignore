@@ -1,6 +1,7 @@
 # Local development and learning notes.
 /docs/*
 !/docs/screenshots/
+!/docs/resume-plan.md
 cv.md
 cv-521.md
 cv-523.md
